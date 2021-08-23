@@ -89,6 +89,9 @@ case "$HOST" in
         prepend_to_search_env_var OBJCPLUS_INCLUDE_PATH "${zlib_store_path}/include"
 esac
 
+# TODO should use store_path
+SV2_FFI_DIR=/gnu/store/`ls /gnu/store/ | grep rust-sv2` 
+
 # Set environment variables to point the CROSS toolchain to the right
 # includes/libs for $HOST
 case "$HOST" in
@@ -252,6 +255,7 @@ esac
 
 # CXXFLAGS
 HOST_CXXFLAGS="$HOST_CFLAGS"
+HOST_CXXFLAGS="${HOST_CXXFLAGS} -I ${SV2_FFI_DIR} ${SV2_FFI_DIR}/libsv2_ffi.a -lpthread -ldl"
 
 case "$HOST" in
     arm-linux-gnueabihf) HOST_CXXFLAGS="${HOST_CXXFLAGS} -Wno-psabi" ;;
