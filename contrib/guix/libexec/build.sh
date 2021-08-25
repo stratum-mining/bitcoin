@@ -58,6 +58,8 @@ store_path() {
 # includes/libs
 NATIVE_GCC="$(store_path gcc-toolchain)"
 NATIVE_GCC_STATIC="$(store_path gcc-toolchain static)"
+echo "ABC ${NATIVE_GCC}"
+echo "CBD ${NATIVE_GCC_STATIC}"
 
 unset LIBRARY_PATH
 unset CPATH
