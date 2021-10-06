@@ -884,3 +884,7 @@ endif
 if ENABLE_QT_TESTS
 include Makefile.qttest.include
 endif
+
+if ENABLE_TMEPLATE_PROVIDER
+include Makefile.template_provider.include
+endif
