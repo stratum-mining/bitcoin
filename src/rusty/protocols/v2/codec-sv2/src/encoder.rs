@@ -4,7 +4,6 @@ use binary_sv2::Serialize;
 use core::marker::PhantomData;
 use framing_sv2::framing2::{Frame as F_, Sv2Frame};
 
-
 #[derive(Debug)]
 pub struct Encoder<T> {
     buffer: Vec<u8>,
@@ -19,6 +18,8 @@ impl<T: Serialize + GetSize> Encoder<T> {
 
         item.serialize(&mut self.buffer).map_err(|_| ())?;
 
+        println!("DEBUG: BUFFER BYTES IN ENCODE: {:?}", self.buffer);
+        println!("DEBUG: BUFFER BYTES IN ENCODE LEN: {:?}", self.buffer.len());
         Ok(&self.buffer[..])
     }
 

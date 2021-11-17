@@ -32,7 +32,13 @@ impl Header {
 
     #[inline]
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, isize> {
+        println!("HEADER: from_bytes(): {:?}", bytes.len());
+        println!("HEADER: Self::SIZE: {:?}", Self::SIZE);
         if bytes.len() < Self::SIZE {
+            println!(
+                "HEADER: Less than Self::Size: {:?}",
+                Self::SIZE - bytes.len()
+            );
             return Err((Self::SIZE - bytes.len()) as isize);
         };
 

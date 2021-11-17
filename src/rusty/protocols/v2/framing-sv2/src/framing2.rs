@@ -130,6 +130,10 @@ impl<'a, T: Serialize + GetSize, B: AsMut<[u8]>> Frame<'a, T> for Sv2Frame<T, B>
         match Header::from_bytes(bytes) {
             Err(i) => i,
             Ok(header) => {
+                // bytes.len() - 6 == header.len()
+                println!("FRAME::size_hint: bytes.len(): {:?}", bytes.len());
+                println!("FRAME::size_hint: SIZE_HINT: {:?}", Header::SIZE);
+                println!("FRAME::size_hint: header.len(): {:?}", header.len());
                 if bytes.len() - Header::SIZE == header.len() {
                     0
                 } else {

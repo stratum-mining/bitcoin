@@ -21,14 +21,18 @@ impl<T: Serialize + binary_sv2::GetSize, B: Buffer> WithoutNoise<B, T> {
     #[inline]
     pub fn next_frame(&mut self) -> Result<Sv2Frame<T, B::Slice>> {
         let len = self.buffer.len();
+        println!("NEXT FRAME: len: {:?}", len);
         let src = self.buffer.get_data_by_ref(len);
+        println!("NEXT FRAME: src: {:?}", src);
         let hint = Sv2Frame::<T, B::Slice>::size_hint(src) as usize;
+        println!("NEXT FRAME hint: {:?}", hint);
 
         match hint {
             0 => {
                 self.missing_b = Header::SIZE;
                 let src = self.buffer.get_data_owned();
                 let frame = Sv2Frame::<T, B::Slice>::from_bytes_unchecked(src);
+                println!("NEXT FRAME: HINT WAS 0");
                 Ok(frame)
             }
             _ => {
