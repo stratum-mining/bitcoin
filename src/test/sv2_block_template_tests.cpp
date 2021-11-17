@@ -60,10 +60,42 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
     }
 
     DecoderWrapper* decoder = new_decoder();
-    CVec buffer = get_writable(decoder);
 
     std::cout << "CVEC ENCODED BUFFER LEN: " << encoded.ok._0.len << std::endl;
     std::cout << "CVEC ENCODED BUFFER Capacity: " << encoded.ok._0.capacity << std::endl;
+
+
+    int byte_read = 0;
+    bool decoded = false;
+    while (! decoded) {
+        // This is thought to works with streams of data from which you read new bytes when they
+        // arrive so more something like that:
+        // ```
+        // CVec buffer = get_writable(decoder);
+        // while (byte_read < buffer.len) {
+        //   byte_read += read(new_socket, buffer.data, (buffer.len - byte_read));
+
+        // }
+        // byte_read = 0;
+        // ```
+
+        CVec buffer = get_writable(decoder);
+        memcpy(buffer.data, &encoded.ok._0.data[byte_read], buffer.len);
+        byte_read += buffer.len;
+
+        CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
+
+        switch (frame.tag) {
+          case CResult < CSv2Message, Sv2Error > ::Tag::Ok:
+            std::cout << "\n";
+            std::cout << "OK";
+            std::cout << "\n";
+            decoded = true;
+            break;
+          case CResult < CSv2Message, Sv2Error > ::Tag::Err:
+            break;
+          };
+    }
 
 
     // TMP: NOTES
@@ -81,26 +113,26 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
     //
     // 5. bytes should equal 144
     //   - So it's not actually finding the rest of the 138 bytes
-    memcpy(buffer.data, encoded.ok._0.data, encoded.ok._0.len);
-    std::cout << "DEBUG: Bytes at buffer and encoded are equal: " << memcmp(buffer.data, encoded.ok._0.data, encoded.ok._0.len) << std::endl;
+    //memcpy(buffer.data, encoded.ok._0.data, encoded.ok._0.len);
+    //std::cout << "DEBUG: Bytes at buffer and encoded are equal: " << memcmp(buffer.data, encoded.ok._0.data, encoded.ok._0.len) << std::endl;
 
-    CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
-    switch (frame.tag) {
-    case CResult < CSv2Message, Sv2Error > ::Tag::Ok:
-        std::cout << "DECODING was OK" << std::endl;
-        break;
-    case CResult < CSv2Message, Sv2Error > ::Tag::Err:
-        std::cout << "DECODING ERROR OCCURRED: " << frame.err._0 << std::endl;
-	switch (frame.err._0) {
-	  case Sv2Error::MissingBytes:
-		  std::cout << "Waiting for the remaining part of the frame \n";
-	    break;
-	  case Sv2Error::Unknown:
-	    std::cout << "An unknown error occured \n";
-	    break;
-	  }
-        break;
-	}
+    //CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
+    // switch (frame.tag) {
+    // case CResult < CSv2Message, Sv2Error > ::Tag::Ok:
+    //     std::cout << "DECODING was OK" << std::endl;
+    //     break;
+    // case CResult < CSv2Message, Sv2Error > ::Tag::Err:
+    //     std::cout << "DECODING ERROR OCCURRED: " << frame.err._0 << std::endl;
+    // switch (frame.err._0) {
+	  //   case Sv2Error::MissingBytes:
+	  // 	  std::cout << "Waiting for the remaining part of the frame \n";
+	  //     break;
+	  //   case Sv2Error::Unknown:
+	  //     std::cout << "An unknown error occured \n";
+	  //     break;
+	  //   }
+    //       break;
+	  // }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
