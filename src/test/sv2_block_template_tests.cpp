@@ -56,17 +56,15 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
         break;
     case CResult < CVec, Sv2Error > ::Tag::Err:
         std::cout << "ERROR OCCURRED: " << encoded.err._0 << std::endl;
-        break;
+        /* break; */
+        return;
     }
 
     DecoderWrapper* decoder = new_decoder();
 
-    std::cout << "CVEC ENCODED BUFFER LEN: " << encoded.ok._0.len << std::endl;
-    std::cout << "CVEC ENCODED BUFFER Capacity: " << encoded.ok._0.capacity << std::endl;
-
-
     int byte_read = 0;
     bool decoded = false;
+    CNewTemplate decoded_msg;
     while (! decoded) {
         // This is thought to works with streams of data from which you read new bytes when they
         // arrive so more something like that:
@@ -91,48 +89,30 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
             std::cout << "OK";
             std::cout << "\n";
             decoded = true;
+            decoded_msg = frame.ok._0.new_template._0;
             break;
           case CResult < CSv2Message, Sv2Error > ::Tag::Err:
             break;
           };
     }
 
+    BOOST_CHECK(decoded_msg.template_id == ctemplate.template_id);
+    BOOST_CHECK(decoded_msg.future_template == ctemplate.future_template);
+    BOOST_CHECK(decoded_msg.version == ctemplate.version);
+    BOOST_CHECK(decoded_msg.coinbase_tx_version == ctemplate.coinbase_tx_version);
+    BOOST_CHECK(memcmp(decoded_msg.coinbase_prefix.data, ctemplate.coinbase_prefix.data, decoded_msg.coinbase_prefix.len) == 0);
+    BOOST_CHECK(decoded_msg.coinbase_prefix.len == ctemplate.coinbase_prefix.len);
+    BOOST_CHECK(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len) == 0);
 
-    // TMP: NOTES
-    // 1. Size Hint in framing2.rs should return 0.
-    //
-    // 2. Hint is calculated using:
-    //   - bytes.len() - Header::SIZE == header.len()
-    //
-    // 3. Variable Sizes:
-    //   - Header::SIZE == 6
-    //   - bytes == 6
-    //   - header.len (msg.len) == 138
-    //
-    // 4. 6 - 6 == 0 (should equal 138) but is 0
-    //
-    // 5. bytes should equal 144
-    //   - So it's not actually finding the rest of the 138 bytes
-    //memcpy(buffer.data, encoded.ok._0.data, encoded.ok._0.len);
-    //std::cout << "DEBUG: Bytes at buffer and encoded are equal: " << memcmp(buffer.data, encoded.ok._0.data, encoded.ok._0.len) << std::endl;
+    std::cout << "DEBUG: merkle_path len: " << ctemplate.merkle_path.len << std::endl;
+    std::cout << "DEBUG: decoded merkle_path len: " << decoded_msg.merkle_path.len << std::endl;
+    BOOST_CHECK(decoded_msg.merkle_path.len == ctemplate.merkle_path.len);
+    BOOST_CHECK(decoded_msg.merkle_path.capacity == ctemplate.merkle_path.capacity);
+    BOOST_CHECK(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len) == 0);
 
-    //CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
-    // switch (frame.tag) {
-    // case CResult < CSv2Message, Sv2Error > ::Tag::Ok:
-    //     std::cout << "DECODING was OK" << std::endl;
-    //     break;
-    // case CResult < CSv2Message, Sv2Error > ::Tag::Err:
-    //     std::cout << "DECODING ERROR OCCURRED: " << frame.err._0 << std::endl;
-    // switch (frame.err._0) {
-	  //   case Sv2Error::MissingBytes:
-	  // 	  std::cout << "Waiting for the remaining part of the frame \n";
-	  //     break;
-	  //   case Sv2Error::Unknown:
-	  //     std::cout << "An unknown error occured \n";
-	  //     break;
-	  //   }
-    //       break;
-	  // }
+
+    /* free_vec_2(); */
+    drop_sv2_message(message);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
