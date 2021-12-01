@@ -1,3 +1,4 @@
+// TODO: Remove unused imports
 #include <chainparams.h>
 #include <streams.h>
 #include <uint256.h>
@@ -9,31 +10,35 @@
 
 #include <boost/test/unit_test.hpp>
 
-
-// CCDLE12: TMP - Remove once mock mempool can be used.
-namespace sv2_block_template_tests {
-struct Sv2BlockTemplateTestingSetup : public TestingSetup {
-
-    void TestPackageSelection(
-		    const CChainParams& chainparams, 
-		    const CScript& scriptPubKey, 
-		    const std::vector<CTransactionRef>& txFirst) 
-	    EXCLUSIVE_LOCKS_REQUIRED(::cs_main, m_node.mempool->cs);
-
-    bool TestSequenceLocks(const CTransaction& tx, int flags) 
-	    EXCLUSIVE_LOCKS_REQUIRED(::cs_main, m_node.mempool->cs)
-    {
-        CCoinsViewMemPool view_mempool(&m_node.chainman->ActiveChainstate().CoinsTip(), *m_node.mempool);
-        return CheckSequenceLocks(m_node.chainman->ActiveChain().Tip(), view_mempool, tx, flags);
-    }
-};
-} // namespace sv2_block_template_tests
-
-BOOST_FIXTURE_TEST_SUITE(sv2_block_template_tests, Sv2BlockTemplateTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(sv2_block_template_tests, TestChain100Setup)
 
 BOOST_AUTO_TEST_CASE(create_sv2_block_template)
 {
-    const auto chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
+    // TODO: Sections - Add txtransctions to the mempool
+    TestMemPoolEntryHelper entry;
+
+    CKey parent_key;
+    parent_key.MakeNewKey(true);
+    CScript parent_locking_script = GetScriptForDestination(PKHash(parent_key.GetPubKey()));
+    auto parent = CreateValidMempoolTransaction(/* input_transaction */ m_coinbase_txns[0], /* vout */ 0,
+                                                    /* input_height */ 0, /* input_signing_key */ coinbaseKey,
+                                                    /* output_destination */ parent_locking_script,
+                                                    /* output_amount */ CAmount(49 * COIN), /* submit */ true);
+    CTransactionRef tx_parent = MakeTransactionRef(parent);
+
+
+    // TODO: Make multiple transactions to add to the mempool.
+    CKey child_key;
+    child_key.MakeNewKey(true);
+    CScript child_locking_script = GetScriptForDestination(PKHash(child_key.GetPubKey()));
+    auto child = CreateValidMempoolTransaction(/* input_transaction */ tx_parent, /* vout */ 0,
+                                                   /* input_height */ 101, /* input_signing_key */ parent_key,
+                                                   /* output_destination */ child_locking_script,
+                                                   /* output_amount */ CAmount(48 * COIN), /* submit */ true);
+
+
+    // TODO: Sections - Creating Block via the BlockAssembler
+    std::unique_ptr<const CChainParams> chainParams = CreateChainParams(*m_node.args, CBaseChainParams::MAIN);
     const CChainParams& chainparams = *chainParams;
 
     BlockAssembler::Options options;
@@ -42,30 +47,33 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
 
     CNewTemplate ctemplate = AssembleSv2BlockTemplate(m_node.chainman->ActiveChainstate(), *m_node.mempool, chainparams, options);
 
+    // TODO: Sections - Build the message on the wire using the CNewTemplate message.
     CSv2Message message;
     message.tag = CSv2Message::Tag::NewTemplate;
     message.new_template._0 = ctemplate;
 
+    // TODO: Sections - Encoding section.
     EncoderWrapper* encoder = new_encoder();
     CResult<CVec, Sv2Error> encoded = encode(&message, encoder);
 
-    // CCDLE12: TMP Debug
     switch (encoded.tag) {
     case CResult < CVec, Sv2Error > ::Tag::Ok:
         std::cout << "Encoding was OK" << std::endl;
         break;
     case CResult < CVec, Sv2Error > ::Tag::Err:
         std::cout << "ERROR OCCURRED: " << encoded.err._0 << std::endl;
-        /* break; */
+        // TODO: Assert the failure of encoding here.
         return;
+        /* break; */
     }
 
+    // TODO: Sections - Decoding section.
     DecoderWrapper* decoder = new_decoder();
 
     int byte_read = 0;
     bool decoded = false;
     CNewTemplate decoded_msg;
-    while (! decoded) {
+    while (!decoded) {
         // This is thought to works with streams of data from which you read new bytes when they
         // arrive so more something like that:
         // ```
@@ -76,42 +84,38 @@ BOOST_AUTO_TEST_CASE(create_sv2_block_template)
         // }
         // byte_read = 0;
         // ```
-
         CVec buffer = get_writable(decoder);
         memcpy(buffer.data, &encoded.ok._0.data[byte_read], buffer.len);
         byte_read += buffer.len;
 
-        CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
+        CResult <CSv2Message, Sv2Error> frame = next_frame(decoder);
 
         switch (frame.tag) {
           case CResult < CSv2Message, Sv2Error > ::Tag::Ok:
-            std::cout << "\n";
-            std::cout << "OK";
-            std::cout << "\n";
             decoded = true;
             decoded_msg = frame.ok._0.new_template._0;
             break;
           case CResult < CSv2Message, Sv2Error > ::Tag::Err:
             break;
+            // TODO: Assert the failure of decoding here
           };
     }
 
-    BOOST_CHECK(decoded_msg.template_id == ctemplate.template_id);
-    BOOST_CHECK(decoded_msg.future_template == ctemplate.future_template);
-    BOOST_CHECK(decoded_msg.version == ctemplate.version);
-    BOOST_CHECK(decoded_msg.coinbase_tx_version == ctemplate.coinbase_tx_version);
-    BOOST_CHECK(memcmp(decoded_msg.coinbase_prefix.data, ctemplate.coinbase_prefix.data, decoded_msg.coinbase_prefix.len) == 0);
-    BOOST_CHECK(decoded_msg.coinbase_prefix.len == ctemplate.coinbase_prefix.len);
-    BOOST_CHECK(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len) == 0);
+    // TODO: Sections - Comparison section
+    BOOST_REQUIRE_EQUAL(decoded_msg.template_id, ctemplate.template_id);
+    BOOST_REQUIRE_EQUAL(decoded_msg.future_template, ctemplate.future_template);
+    BOOST_REQUIRE_EQUAL(decoded_msg.version, ctemplate.version);
+    BOOST_REQUIRE_EQUAL(decoded_msg.coinbase_tx_version, ctemplate.coinbase_tx_version);
+    BOOST_REQUIRE_EQUAL(memcmp(decoded_msg.coinbase_prefix.data, ctemplate.coinbase_prefix.data, decoded_msg.coinbase_prefix.len), 0);
+    BOOST_REQUIRE_EQUAL(decoded_msg.coinbase_prefix.len, ctemplate.coinbase_prefix.len);
+    BOOST_REQUIRE_EQUAL(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len), 0);
 
     std::cout << "DEBUG: merkle_path len: " << ctemplate.merkle_path.len << std::endl;
     std::cout << "DEBUG: decoded merkle_path len: " << decoded_msg.merkle_path.len << std::endl;
-    BOOST_CHECK(decoded_msg.merkle_path.len == ctemplate.merkle_path.len);
-    BOOST_CHECK(decoded_msg.merkle_path.capacity == ctemplate.merkle_path.capacity);
-    BOOST_CHECK(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len) == 0);
+    BOOST_REQUIRE_EQUAL(decoded_msg.merkle_path.len, ctemplate.merkle_path.len);
+    BOOST_REQUIRE_EQUAL(decoded_msg.merkle_path.capacity, ctemplate.merkle_path.capacity);
+    BOOST_REQUIRE_EQUAL(memcmp(decoded_msg.coinbase_tx_outputs.data, ctemplate.coinbase_tx_outputs.data, decoded_msg.coinbase_tx_outputs.len), 0);
 
-
-    /* free_vec_2(); */
     drop_sv2_message(message);
 }
 
