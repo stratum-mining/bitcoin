@@ -342,6 +342,14 @@ pub extern "C" fn new_decoder() -> *mut DecoderWrapper {
 
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn free_decoder(decoder: *mut DecoderWrapper) {
+    // let mut decoder = unsafe { Box::from_raw(decoder) };
+    unsafe { Box::from_raw(decoder) };
+    // Box::into_raw(decoder);
+}
+
+#[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn get_writable(decoder: *mut DecoderWrapper) -> CVec {
     let mut decoder = unsafe { Box::from_raw(decoder) };
     let writable = decoder.0.writable();

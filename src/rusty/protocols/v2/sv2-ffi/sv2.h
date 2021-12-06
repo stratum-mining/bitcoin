@@ -82,6 +82,8 @@ CVec cvec_from_buffer(const uint8_t *data, uintptr_t len);
 
 CVec2 init_cvec2();
 
+/// The caller is reponsible for NOT adding duplicate cvecs to the cvec2 structure,
+/// as this can lead to double free errors when the message is dropped.
 void cvec2_push(CVec2 *cvec2, CVec cvec);
 
 void _c_export_u24(U24 _a);
@@ -385,6 +387,8 @@ void free_encoder(EncoderWrapper *encoder);
 CResult<CVec, Sv2Error> encode(CSv2Message *message, EncoderWrapper *encoder);
 
 DecoderWrapper *new_decoder();
+
+void free_decoder(DecoderWrapper *decoder);
 
 CVec get_writable(DecoderWrapper *decoder);
 
