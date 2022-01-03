@@ -349,7 +349,7 @@ AC_ARG_ENABLE([template-provider],
     [AS_IF([test ${RUSTC} = yes],
             [
                 AC_DEFINE([ENABLE_TMEPLATE_PROVIDER],[1],[Define if TP should be compiled in])
-                LDFLAGS="$LDFLAGS -lpthread -Wl,--no-as-needed -ldl"
+                LDFLAGS="$LDFLAGS -lpthread -ldl"
                 add_template_provider=$enableval
             ],
             AC_MSG_ERROR(enable-template-provider set but rustc ${RUSTC_MIN_VERSION} or later is not avaiable)
