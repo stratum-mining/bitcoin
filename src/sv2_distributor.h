@@ -4,6 +4,8 @@
 #include <streams.h>
 #include <uint256.h>
 #include <time.h>
+#include <validation.h>
+#include <miner.h>
 #include <rusty/protocols/v2/sv2-ffi/sv2.h>
 
 CNewTemplate AssembleSv2BlockTemplate(CChainState& chainstate, const CTxMemPool& mempool, const CChainParams& params, const BlockAssembler::Options options) {
