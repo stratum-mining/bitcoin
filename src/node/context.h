@@ -25,6 +25,7 @@ class ChainClient;
 class Init;
 class WalletClient;
 } // namespace interfaces
+class Sv2Distributor;
 
 //! NodeContext struct containing references to chain state and connection
 //! state.
@@ -55,6 +56,10 @@ struct NodeContext {
     interfaces::WalletClient* wallet_client{nullptr};
     std::unique_ptr<CScheduler> scheduler;
     std::function<void()> rpc_interruption_point = [] {};
+
+    // TODO: CCDLE12 SV2- Add a unique_ptr to Sv2Distributor.
+    std::unique_ptr<Sv2Distributor> sv2_distributor;
+
 
     //! Declare default constructor and destructor that are not inline, so code
     //! instantiating the NodeContext struct doesn't need to #include class

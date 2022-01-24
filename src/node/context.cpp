@@ -11,6 +11,7 @@
 #include <net_processing.h>
 #include <policy/fees.h>
 #include <scheduler.h>
+#include <sv2_distributor.h>
 #include <txmempool.h>
 #include <validation.h>
 

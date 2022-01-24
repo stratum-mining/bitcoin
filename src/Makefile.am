@@ -167,7 +167,6 @@ BITCOIN_CORE_H = \
   memusage.h \
   merkleblock.h \
   miner.h \
-  sv2_distributor.h \
   net.h \
   net_permissions.h \
   net_processing.h \
@@ -222,6 +221,7 @@ BITCOIN_CORE_H = \
   support/cleanse.h \
   support/events.h \
   support/lockedpool.h \
+  sv2_distributor.h \
   sync.h \
   threadinterrupt.h \
   threadsafety.h \
@@ -361,6 +361,7 @@ libbitcoin_server_a_SOURCES = \
   script/sigcache.cpp \
   shutdown.cpp \
   signet.cpp \
+  sv2_distributor.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \

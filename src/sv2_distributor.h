@@ -1,57 +1,73 @@
 #ifndef SV2_DISTRIBUTOR_H
 #define SV2_DISTRIBUTOR_H
 
+// TMP
+#include <netbase.h>
+#include <util/thread.h>
+#include <util/syscall_sandbox.h>
+#include <rusty/protocols/v2/sv2-ffi/sv2.h>
+// TMP
+
 #include <streams.h>
 #include <uint256.h>
 #include <time.h>
 #include <validation.h>
 #include <miner.h>
-#include <rusty/protocols/v2/sv2-ffi/sv2.h>
 
-CNewTemplate AssembleSv2BlockTemplate(CChainState& chainstate, const CTxMemPool& mempool, const CChainParams& params, const BlockAssembler::Options options) {
-    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(chainstate, mempool, params, options)
-        .CreateNewBlock(CScript());
+class CNewTemplate;
 
-    const CBlock block = pblocktemplate->block;
-    const CBlockHeader header = block.GetBlockHeader();
-    
-    CNewTemplate ctemplate;
-    ctemplate.template_id = GetTimeSeconds();
+// TODO: Sv2Client that represents a remote downstream connection.
+// TODO: Make this a private class in Sv2Distributor
+class Sv2Client 
+{
+public:
+    std::unique_ptr<Sock> m_sock;
 
-    // TODO: Decide when this is a future block or not.
-    ctemplate.future_template = false;
-    ctemplate.version = header.nVersion;
+    // TODO: Not sure if this unique_ptr as a param is correct and not sure if this type init constructor is acceptable in btc.
+    Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)} {};
+};
 
-    const auto coinbase_tx = block.vtx[0];
-    ctemplate.coinbase_tx_version = coinbase_tx->CURRENT_VERSION;
+class Sv2Distributor 
+{
+private:
+    // TODO: Maybe not the right thing to do, maybe theres a reason for a vector
+    // of sockets.
+    // Also the naming convention for a signle member variable is probably wrong.
+    // TODO: 
+    std::unique_ptr<Sock> m_listening_socket;
 
-    CDataStream coinbase_script(SER_NETWORK, PROTOCOL_VERSION);
-    coinbase_script << coinbase_tx->vin[0].scriptSig;
+    // TODO: 
+    std::thread m_thread_sv2_handler;
 
-    // TODO: Double check why 8 is hardcoded as the length?
-    ctemplate.coinbase_prefix = cvec_from_buffer(&coinbase_script[0], 8);
-    ctemplate.coinbase_tx_input_sequence = coinbase_tx->vin[0].nSequence;
+    // TODO:
+    std::vector<Sv2Client> m_sv2_clients;
 
-    // TODO: Can keep this set to 0, since this will be modified by the client?
-    ctemplate.coinbase_tx_value_remaining = 0;
-    ctemplate.coinbase_tx_outputs_count = coinbase_tx->vout.size();
-    
-    CDataStream vout(SER_NETWORK, PROTOCOL_VERSION);
-    vout << coinbase_tx->vout;
-    ctemplate.coinbase_tx_outputs = cvec_from_buffer(&vout[0], vout.size());
-    ctemplate.coinbase_tx_locktime = coinbase_tx->nLockTime;
+    // TODO:
+    std::atomic<bool> m_flag_interrupt_sv2{false};
 
-    CVec2 cvec2 = init_cvec2();
-    for (const auto& tx: block.vtx) {
-        CDataStream merkle_path_stream(SER_NETWORK, PROTOCOL_VERSION);
-        merkle_path_stream << tx->GetHash();
+    // TODO - Pass on construction?
+    // - CChainstate*
+    /* const CChainState& m_chainstate; */
+    CChainState& m_chainstate;
 
-        auto merkle_path = cvec_from_buffer(&merkle_path_stream[0], merkle_path_stream.size());
-        cvec2_push(&cvec2, merkle_path);
-    }
+    // - CTXMempool*
+    /* CTxMemPool& m_mempool; */
+    CTxMemPool& m_mempool;
 
-    ctemplate.merkle_path = cvec2;
+    // - CChainParams
+    const CChainParams& m_chainparams;
+    // - BlockAssembler options
+    /* const BlockAssembler& m_block_assembler_options; */
 
-    return ctemplate;
-}
+public:
+    Sv2Distributor(CChainState& chainstate, CTxMemPool& mempool, const CChainParams& chainparams) 
+        : m_chainstate{chainstate}, m_mempool{mempool}, m_chainparams{chainparams} {};
+
+    CNewTemplate AssembleSv2BlockTemplate();
+    void BindListenPort();
+    void ThreadSv2Handler();
+    void Start();
+    void StopThreads();
+    void Interrupt();
+};
 #endif // SV2_DISTRIBUTOR_H

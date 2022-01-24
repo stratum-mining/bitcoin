@@ -7,6 +7,11 @@
 #include <config/bitcoin-config.h>
 #endif
 
+// TODO: TMP
+#include <netaddress.h>
+#include <sv2_distributor.h>
+// TODO: TMP
+
 #include <init.h>
 
 #include <addrman.h>
@@ -156,6 +161,7 @@ static fs::path GetPidFile(const ArgsManager& args)
 // shutdown thing.
 //
 
+// TODO: CCDLE12 SV2 - Need to add an interrupt for sv2distributor
 void Interrupt(NodeContext& node)
 {
     InterruptHTTPServer();
@@ -169,12 +175,19 @@ void Interrupt(NodeContext& node)
     if (g_txindex) {
         g_txindex->Interrupt();
     }
+    // TODO: CCDLE12 - SV2 TMP because when I send an interrupt signal, I think
+    // this stalls because I'm not closing this thread.
+    printf("SV2: BEFORE SV2 STOP TREADS IN INTERRUPT\n");
+    if (node.sv2_distributor) {
+        node.sv2_distributor->Interrupt();
+    }
     ForEachBlockFilterIndex([](BlockFilterIndex& index) { index.Interrupt(); });
     if (g_coin_stats_index) {
         g_coin_stats_index->Interrupt();
     }
 }
 
+// TODO: CCDLE12 SV2 - I need to be able to call Stop on the sv2distributor here
 void Shutdown(NodeContext& node)
 {
     static Mutex g_shutdown_mutex;
@@ -199,10 +212,14 @@ void Shutdown(NodeContext& node)
     }
     StopMapPort();
 
+
     // Because these depend on each-other, we make sure that neither can be
     // using the other before destroying them.
     if (node.peerman) UnregisterValidationInterface(node.peerman.get());
     if (node.connman) node.connman->Stop();
+
+    // TODO: CCDLE12 - SV2 Shutting down the node.sv2_distributor.
+    if (node.sv2_distributor) node.sv2_distributor->StopThreads();
 
     StopTorControl();
 
@@ -218,6 +235,8 @@ void Shutdown(NodeContext& node)
     node.connman.reset();
     node.banman.reset();
     node.addrman.reset();
+    // TODO: CCDLE12- SHUTTING DOWN PTRS SAFELY
+    node.sv2_distributor.reset();
 
     if (node.mempool && node.mempool->IsLoaded() && node.args->GetBoolArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         DumpMempool(*node.mempool);
@@ -624,11 +643,13 @@ static bool AppInitServers(NodeContext& node)
     if (!InitHTTPServer())
         return false;
     StartRPC();
+
     node.rpc_interruption_point = RpcInterruptionPoint;
     if (!StartHTTPRPC(&node))
         return false;
     if (args.GetBoolArg("-rest", DEFAULT_REST_ENABLE)) StartREST(&node);
     StartHTTPServer();
+
     return true;
 }
 
@@ -1261,6 +1282,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     node.chainman = std::make_unique<ChainstateManager>();
     ChainstateManager& chainman = *node.chainman;
 
+
     assert(!node.peerman);
     node.peerman = PeerManager::make(chainparams, *node.connman, *node.addrman, node.banman.get(),
                                      chainman, *node.mempool, ignores_incoming_txs);
@@ -1852,6 +1874,18 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }, DUMP_BANS_INTERVAL);
 
     if (node.peerman) node.peerman->StartScheduledTasks(*node.scheduler);
+
+    // -- TODO: CCDLE12: Sv2Distributor
+    // So at the moment, this works here, because the chainstate is active and passes
+    // an assertion check. If this code was further up, it would fail because the
+    // chainstate is no active.
+    assert(!node.sv2_distributor);
+    node.sv2_distributor = std::make_unique<Sv2Distributor>(
+        node.chainman->ActiveChainstate(), *node.mempool, chainparams
+    );
+    node.sv2_distributor->BindListenPort();
+    node.sv2_distributor->Start();
+
 
 #if HAVE_SYSTEM
     StartupNotify(args);

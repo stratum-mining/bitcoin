@@ -250,12 +250,16 @@ static bool AppInit(NodeContext& node, int argc, char* argv[])
 }
 
 
+// TODO: CCDLE12 SV2 - Why is this raising errors now?
+// TODO: Remove this code
 #ifdef ENABLE_TMEPLATE_PROVIDER
-    #include <rusty/protocols/v2/sv2-ffi/sv2.h>
+/* #include <rusty/protocols/v2/sv2-ffi/sv2.h> */
+#include <sv2_distributor.h>
     // It uses the sv2_ffi library to build a correct Sv2 message and an incorrect one.
     // Then try to encode them, it print ok if the ecoding is possible it print err if not.
     void test_template_provider()
     {
+        LogPrintf("CCDLE12: Hello world\n");
         EncoderWrapper * encoder = new_encoder();
     
         const char* error = "connection can not be created";
@@ -310,9 +314,10 @@ int main(int argc, char* argv[])
     util::WinCmdLineArgs winArgs;
     std::tie(argc, argv) = winArgs.get();
 #endif
-#ifdef ENABLE_TMEPLATE_PROVIDER
-    test_template_provider();
-#else
+/* TMP: Trying follow the rpc code and finding how and where the rpc port is created and read from */
+/* #ifdef ENABLE_TMEPLATE_PROVIDER */
+    /* test_template_provider(); */
+/* #else */
 
     NodeContext node;
     int exit_status;
@@ -320,12 +325,12 @@ int main(int argc, char* argv[])
     if (!init) {
         return exit_status;
     }
+    EncoderWrapper * encoder = new_encoder();
 
     SetupEnvironment();
 
     noui_connect();
 
     return (AppInit(node, argc, argv) ? EXIT_SUCCESS : EXIT_FAILURE);
-#endif
-
+/* #endif */
 };
