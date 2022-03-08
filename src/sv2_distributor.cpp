@@ -13,24 +13,14 @@
 #include <miner.h>
 
 
-CNewTemplate Sv2Distributor::AssembleSv2BlockTemplate()
+CNewTemplate Sv2Distributor::AssembleSv2BlockTemplate(const CBlock& block)
 {
-    BlockAssembler::Options options;
-    options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
-    options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
-
-    std::unique_ptr<CBlockTemplate> pblocktemplate = BlockAssembler(m_chainstate, m_mempool, m_chainparams, options)
-        .CreateNewBlock(CScript());
-
-    const CBlock block = pblocktemplate->block;
-    const CBlockHeader header = block.GetBlockHeader();
-    
     CNewTemplate ctemplate;
     ctemplate.template_id = GetTimeSeconds();
 
     // TODO: Decide when this is a future block or not.
     ctemplate.future_template = false;
-    ctemplate.version = header.nVersion;
+    ctemplate.version = block.GetBlockHeader().nVersion;
 
     const auto coinbase_tx = block.vtx[0];
     ctemplate.coinbase_tx_version = coinbase_tx->CURRENT_VERSION;
@@ -38,7 +28,7 @@ CNewTemplate Sv2Distributor::AssembleSv2BlockTemplate()
     CDataStream coinbase_script(SER_NETWORK, PROTOCOL_VERSION);
     coinbase_script << coinbase_tx->vin[0].scriptSig;
 
-    // TODO: Double check why 8 is hardcoded as the length?
+    // TODO: Double check why 8 is hardcoded as the length? Also is it just the first 8 bytes of the scriptSig? Which is NOT the length and block ehight, so might need ot bit shift or access the correct index.
     ctemplate.coinbase_prefix = cvec_from_buffer(&coinbase_script[0], 8);
     ctemplate.coinbase_tx_input_sequence = coinbase_tx->vin[0].nSequence;
 
@@ -67,6 +57,7 @@ CNewTemplate Sv2Distributor::AssembleSv2BlockTemplate()
 
 void Sv2Distributor::BindListenPort()
 {
+        // TODO: Need to configure port according to import
         CService addrBind = LookupNumeric("0.0.0.0", 8442);
         std::unique_ptr<Sock> sock = CreateSock(addrBind);
         if (!sock) {
@@ -74,18 +65,14 @@ void Sv2Distributor::BindListenPort()
             return;
         }
 
-        // TODO:
-        // What is sockaddr_storage?
         struct sockaddr_storage sockaddr;
         socklen_t len = sizeof(sockaddr);
 
-        // TODO: Manipulates the addr to the correct format for the OS
         if (!addrBind.GetSockAddr((struct sockaddr*)&sockaddr, &len)) {
             LogPrintf("SV2DEBUG: Error: Bind address family for %s not supported", addrBind.ToString());
             return;
         }
 
-        // TODO: Now actually bind the port?
         if (bind(sock->Get(), (struct sockaddr*)&sockaddr, len) == SOCKET_ERROR) {
             int nErr = WSAGetLastError();
             if (nErr == WSAEADDRINUSE)
@@ -98,7 +85,6 @@ void Sv2Distributor::BindListenPort()
 
         // TODO: Need to handle this better BUT actually we could extract some
         // of Connman to netbase? This uses the exact same logic
-        /* if ((m_listening_socket = listen(sock->Get(), 4096)) == SOCKET_ERROR) { */
         if ((listen(sock->Get(), 4096)) == SOCKET_ERROR) {
             LogPrintf("SV2DEBUG: Error listening to port\n");
             return;
@@ -111,8 +97,6 @@ void Sv2Distributor::BindListenPort()
 
 void Sv2Distributor::ThreadSv2Handler() 
 {
-        // TODO: I think this limits any calls within this thread/function? to
-        // limit the syscalls
         SetSyscallSandboxPolicy(SyscallSandboxPolicy::NET);
 
         struct sockaddr_in address;
@@ -122,14 +106,19 @@ void Sv2Distributor::ThreadSv2Handler()
         int addrlen = sizeof(address);
 
         while (!m_flag_interrupt_sv2) {
-            /* LogPrintf("SV2DEBUG: start of loop\n"); */
+            LogPrintf("CCDLE12: Restarting main while loop\n");
+            // TODO: Tmp state to block any processing until IBD is complete
+            if (m_chainstate.IsInitialBlockDownload()) {
+                LogPrintf("DEBUG: Chainstate is in IBD\n");
+                continue;
+            }
+
             std::set<SOCKET> recv_set, send_set, err_set;
             std::set<SOCKET> recv_select_set, send_select_set, err_select_set;
 
             recv_select_set.insert(m_listening_socket->Get());
 
             for (const Sv2Client& client : m_sv2_clients) {
-                /* LogPrintf("SV2DEBUG: Adding connection from fd: %d\n", client.m_sock); */
                 recv_select_set.insert(client.m_sock->Get());
                 send_select_set.insert(client.m_sock->Get());
                 err_select_set.insert(client.m_sock->Get());
@@ -162,7 +151,6 @@ void Sv2Distributor::ThreadSv2Handler()
             timeout.tv_sec  = 0;
             timeout.tv_usec = 50 * 1000; // frequency to call select
 
-            /* int nSelect = select(hSocketMax + 1, &fdsetRecV, &fdsetSend, &fdsetError, &timeout); */
             select(hSocketMax + 1, &fdsetRecv, &fdsetSend, &fdsetError, &timeout);
 
             // TODO: Check each fd in the sets if select is activated? and add them to the the recv_sets.
@@ -173,9 +161,9 @@ void Sv2Distributor::ThreadSv2Handler()
             }
 
             for (int hSocket : send_select_set) {
-                if (FD_ISSET(hSocket, &fdsetSend)) {
-                    send_set.insert(hSocket);
-                }
+                /* if (FD_ISSET(hSocket, &fdsetSend)) { */
+                /*     send_set.insert(hSocket); */
+                /* } */
             }
 
             for (int hSocket : err_select_set) {
@@ -185,62 +173,198 @@ void Sv2Distributor::ThreadSv2Handler()
             }
 
             if (m_listening_socket->Get() != INVALID_SOCKET && recv_set.count(m_listening_socket->Get()) > 0) {
-                SOCKET hSocket = accept(m_listening_socket->Get(), (struct sockaddr*)&address, (socklen_t *)&addrlen);
-                /* LogPrintf("SV2DEBUG: Accepted connection from fd: %d\n", hSocket); */
+                SOCKET hSocket = accept(m_listening_socket->Get(), (struct sockaddr*)&address, (socklen_t*)&addrlen);
 
-                // TODO: Create a client using this socket.
                 std::unique_ptr<Sock> sock = std::make_unique<Sock>(hSocket);
                 Sv2Client client = Sv2Client(std::move(sock));
                 m_sv2_clients.push_back(std::move(client));
             }
-            
-            // TODO: Service each node
-            for (const Sv2Client& client : m_sv2_clients) {
+
+            for (Sv2Client& client : m_sv2_clients) {
+                LogPrintf("CCDLE12: Iterating over client: %d\n", client.m_sock->Get());
                 bool recvSet = false;
-                /* bool sendSet = false; */
-                /* bool errSet = false; */
+                bool sendSet = false;
+                bool errSet = false;
 
                 recvSet = recv_set.count(client.m_sock->Get()) > 0;
-                /* sendSet = send_set.count(client.m_sock) > 0; */
-                /* errSet = err_set.count(client.m_sock) > 0; */
+                sendSet = send_set.count(client.m_sock->Get()) > 0;
+                errSet = err_set.count(client.m_sock->Get()) > 0;
 
-                /* LogPrintf("SV2DEBUG: looping through m_sv2_clients: %d\n", client.m_sock); */
-                uint8_t pchBuf[0x10000];
-                int nBytes = 0;
+                DecoderWrapper* decoder = new_decoder();
+                bool f = true;
+                int cursor = 0;
                 if (recvSet) {
-                    /* LogPrintf("SV2DEBUG: sock is in recv set: %d\n", client.m_sock); */
-                    nBytes = recv(client.m_sock->Get(), (char*)pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
-                }
+                    uint8_t pchBuf[0x10000];
+                    int bytes_read = recv(client.m_sock->Get(), (char*)pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
 
-                if (nBytes > 0) {
-                    printf("SV2DEBUG: received a message from: %d\n", client.m_sock->Get());
-                    // TODO: CCDLE12 SV2 - tmp build a block and serialize it out over the fd.
-                    auto blocktemplate = AssembleSv2BlockTemplate();
+                    // TODO: Rename the variable for this while loop.
+                    while (f) {
+                      CVec buffer = get_writable(decoder);
 
-                    // TODO: Sections - Build the message on the wire using the CNewTemplATE message.
-                    CSv2Message message;
-                    message.tag = CSv2Message::Tag::NewTemplate;
-                    message.new_template._0 = blocktemplate;
+                      if (bytes_read < buffer.len || cursor > bytes_read) {
+                          f = false;
+                          continue;
+                      }
 
-                    // TODO: Sections - Encoding section.
-                    EncoderWrapper* encoder = new_encoder();
-                    CResult<CVec, Sv2Error> encoded = encode(&message, encoder);
+                      LogPrintf("CCDLE12: Buffer.len: %d\n", buffer.len);
+                      if (bytes_read > 0) {
+                          LogPrintf("CCDLE12: cursor: %d\n", cursor);
+                            // NOTE: Copying the pchBuffer into the buffer.data accordoing ot length, this will allow next_frame to parse the message.
+                            memcpy(buffer.data, &pchBuf[cursor], buffer.len);
 
-                    switch (encoded.tag) {
-                    case CResult < CVec, Sv2Error > ::Tag::Ok:
-                        printf("SV2DEBUG: Encoding OK\n");
-                        break;
-                    case CResult < CVec, Sv2Error > ::Tag::Err:
-                        printf("SV2DEBUG: Encoding ERR\n");
-                        break;
-                    }
+                            LogPrintf("CCDLE12: before next frame\n");
+                            CResult<CSv2Message, Sv2Error> frame = next_frame(decoder);
+                            LogPrintf("CCDLE12: after next frame\n");
 
-                    write(client.m_sock->Get(), encoded.ok._0.data, encoded.ok._0.len);
-                    free_encoder(encoder);
-                }
-            }
-        }
-};
+                            switch (frame.tag) {
+                              case CResult<CSv2Message, Sv2Error>::Tag::Ok: {
+                                  LogPrintf("CCDLE12: Tag::Ok received\n");
+                                  switch (frame.ok._0.tag) {
+                                      case CSv2Message::Tag::SetupConnection:
+                                        {
+                                          if (client.m_setup_connection_confirmed) {
+                                              // TODO: Maybe we drop the connection?
+                                              f = false;
+                                              break;
+                                          }
+
+                                         // TODO: Can this be a pointer?
+                                         CSetupConnection setup_connection = frame.ok._0.setup_connection._0;
+
+                                          // TODO: Switch on the CSv2Message protocol, it should ONLY be templatedistribution
+                                         switch (setup_connection.protocol) {
+                                             case Protocol::TemplateDistributionProtocol:
+                                               {
+                                                   LogPrintf("CCDLE12: Received a SetupConnection TemplateDistributionProtocol\n");
+
+                                                   uint16_t min_version = setup_connection.min_version;
+                                                   LogPrintf("CCDLE12: min_version from the setupconnection message: %d\n", min_version);
+
+                                                   client.m_setup_connection_confirmed = true;
+                                                    
+                                                   // TODO: Respond the setupconnection success?
+                                                   // TODO: Send the SetupConnectionSuccess and figure out what to assign to used_version and flags.
+                                                   // TODO: Maybe wrap this in a helper function to encode a message?
+                                                   SetupConnectionSuccess setup_connection_success;
+                                                   setup_connection_success.used_version = 0; 
+                                                   setup_connection_success.flags = 0;
+
+                                                   CSv2Message response;
+                                                   response.tag = CSv2Message::Tag::SetupConnectionSuccess;
+                                                   response.setup_connection_success._0 = setup_connection_success;
+
+                                                   EncoderWrapper* encoder = new_encoder();
+                                                   CResult<CVec, Sv2Error> encoded = encode(&response, encoder);
+
+                                                   switch (encoded.tag) {
+                                                       case CResult < CVec, Sv2Error > ::Tag::Ok:
+                                                         write(client.m_sock->Get(), encoded.ok._0.data, encoded.ok._0.len);
+                                                         break;
+                                                       case CResult < CVec, Sv2Error > ::Tag::Err:
+                                                         // TODO: What do we do?
+                                                         break;
+                                                   }
+                                                  free_encoder(encoder);
+                                                    
+                                                  // TODO: CCDLE12 SV2 - tmp build a block and serialize it out over the fd.
+                                                  // TODO: CDDLE12 SV2 - Build a block separately and pass it in as a reference to a blocktemplate
+                                                  BlockAssembler::Options options;
+                                                  options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
+                                                  options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
+
+                                                  std::unique_ptr<CBlockTemplate> blocktemplate = BlockAssembler(m_chainstate, m_mempool, m_chainparams, options).CreateNewBlock(CScript());
+
+                                                  // TODO: Rename to BuildSv2BlockTemplate
+                                                  CNewTemplate sv2_new_template = AssembleSv2BlockTemplate(blocktemplate->block);
+
+                                                  // TODO: Sections - Build the message on the wire using the CNewTemplate message.
+                                                  CSv2Message new_template_response;
+                                                  new_template_response.tag = CSv2Message::Tag::NewTemplate;
+                                                  new_template_response.new_template._0 = sv2_new_template;
+
+                                                  EncoderWrapper* new_template_encoder = new_encoder();
+                                                  CResult<CVec, Sv2Error> new_template_encoded = encode(&response, new_template_encoder);
+
+                                                  switch (new_template_encoded.tag) {
+                                                      case CResult < CVec, Sv2Error > ::Tag::Ok:
+                                                        write(client.m_sock->Get(), new_template_encoded.ok._0.data, new_template_encoded.ok._0.len);
+                                                        break;
+                                                      case CResult < CVec, Sv2Error > ::Tag::Err:
+                                                        break;
+                                                  }
+                                                  free_encoder(new_template_encoder);
+
+                                                  // TODO: Maybe just send a new new template hash here? I dont know why but I'll just do it anyway
+                                                  // TODO: Can I reuse the encoder?
+                                                  CSetNewPrevHash set_new_prev_hash;
+                                                  set_new_prev_hash.template_id = sv2_new_template.template_id;
+                                                  set_new_prev_hash.prev_hash = cvec_from_buffer(blocktemplate->block.hashPrevBlock.data(), blocktemplate->block.hashPrevBlock.size());
+                                                  set_new_prev_hash.header_timestamp = blocktemplate->block.nTime;
+                                                  set_new_prev_hash.n_bits = blocktemplate->block.nBits;
+
+                                                  // TODO: Not sure if this is the correct value to use for target.
+                                                  uint256 target = ArithToUint256(arith_uint256().SetCompact(blocktemplate->block.nBits));
+                                                  set_new_prev_hash.target = cvec_from_buffer(target.data(), target.size());
+
+                                                  CSv2Message set_new_prev_hash_msg;
+                                                  set_new_prev_hash_msg.tag = CSv2Message::Tag::SetNewPrevHash;
+                                                  set_new_prev_hash_msg.set_new_prev_hash._0 = set_new_prev_hash;
+
+                                                  EncoderWrapper* new_prev_hash_encoder = new_encoder();
+                                                  CResult<CVec, Sv2Error> new_prev_hash_encoded = encode(&set_new_prev_hash_msg, new_prev_hash_encoder);
+
+                                                  switch (new_prev_hash_encoded.tag) {
+                                                      case CResult<CVec, Sv2Error>::Tag::Ok:
+                                                        write(client.m_sock->Get(), new_prev_hash_encoded.ok._0.data, new_prev_hash_encoded.ok._0.len);
+                                                        break;
+                                                      case CResult<CVec, Sv2Error>::Tag::Err:
+                                                        break;
+                                                  }
+                                                  free_encoder(new_prev_hash_encoder);
+
+                                                  f = false;
+                                                  break;
+                                               }
+                                             // TODO: CCDLE12 If the message is NOT TemplateDistributionProtocol then break and drop connection
+                                             default:
+                                               { 
+                                                   LogPrintf("CCDLE12: Different protocol received\n");
+                                                   f = false;
+                                                   break;
+                                               }       
+                                         }
+                                         break;
+                                       }
+                                      case CSv2Message::Tag::SubmitSolution:
+                                         {
+                                             LogPrintf("CCDLE12: Received a submit solution\n");
+                                             f = false;
+                                             break;
+                                         }
+
+                                      break;
+                                  } // frame.ok._0.tag
+                                  break;
+                              }
+                              case CResult<CSv2Message, Sv2Error>::Tag::Err:
+                                {
+                                LogPrintf("CCDLE12: Error in tag received\n");
+                                // NOTE: Increase the cursor by the buffer.len, this allows the cursor to move the next bytes in pchBuf.
+                                cursor += buffer.len;
+                                /* cursor += 6; */
+                                break;
+                                }
+                            }; //switch frame.tag
+                      } // bytes_read
+                      else { 
+                        LogPrintf("CCDLE12: 0 bytes read\n");
+                        f = false; 
+                      };
+                    } // while (f)
+                } // recv_set
+            } // for loop
+        } // main while loop
+} // ThreadSv2Handler
 
 void Sv2Distributor::Start()
 {

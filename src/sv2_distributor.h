@@ -23,8 +23,12 @@ class Sv2Client
 public:
     std::unique_ptr<Sock> m_sock;
 
+    // TODO: TEMP to identify that a node has confirmed the SetupConnection Message
+    // TODO: Should it also be atomic?
+    bool m_setup_connection_confirmed;
+
     // TODO: Not sure if this unique_ptr as a param is correct and not sure if this type init constructor is acceptable in btc.
-    Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)} {};
+    Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)}, m_setup_connection_confirmed{false} {};
 };
 
 class Sv2Distributor 
@@ -63,7 +67,8 @@ public:
     Sv2Distributor(CChainState& chainstate, CTxMemPool& mempool, const CChainParams& chainparams) 
         : m_chainstate{chainstate}, m_mempool{mempool}, m_chainparams{chainparams} {};
 
-    CNewTemplate AssembleSv2BlockTemplate();
+    // TODO: Rename this to BuildSv2BlockTemplate
+    CNewTemplate AssembleSv2BlockTemplate(const CBlock& block);
     void BindListenPort();
     void ThreadSv2Handler();
     void Start();
