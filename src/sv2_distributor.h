@@ -6,6 +6,8 @@
 #include <util/thread.h>
 #include <util/syscall_sandbox.h>
 #include <rusty/protocols/v2/sv2-ffi/sv2.h>
+#include <chainparams.h>
+#include <threadinterrupt.h>
 // TMP
 
 #include <streams.h>
@@ -15,6 +17,7 @@
 #include <miner.h>
 
 class CNewTemplate;
+class CCChainParams;
 
 // TODO: Sv2Client that represents a remote downstream connection.
 // TODO: Make this a private class in Sv2Distributor
@@ -52,7 +55,8 @@ private:
     // TODO - Pass on construction?
     // - CChainstate*
     /* const CChainState& m_chainstate; */
-    CChainState& m_chainstate;
+    /* CChainState& m_chainstate; */
+    ChainstateManager& m_chainman;
 
     // - CTXMempool*
     /* CTxMemPool& m_mempool; */
@@ -63,9 +67,14 @@ private:
     // - BlockAssembler options
     /* const BlockAssembler& m_block_assembler_options; */
 
+    // TMP: Helper to see if we can throttle the wait on exiting IBD.
+    CThreadInterrupt m_interrupt_sv2;
+
 public:
-    Sv2Distributor(CChainState& chainstate, CTxMemPool& mempool, const CChainParams& chainparams) 
-        : m_chainstate{chainstate}, m_mempool{mempool}, m_chainparams{chainparams} {};
+    /* Sv2Distributor(CChainState& chainstate, CTxMemPool& mempool, const CChainParams& chainparams) */ 
+        /* : m_chainstate{chainstate}, m_mempool{mempool}, m_chainparams{chainparams} {}; */
+    Sv2Distributor(ChainstateManager& chainman, CTxMemPool& mempool, const CChainParams& chainparams) 
+        : m_chainman{chainman}, m_mempool{mempool}, m_chainparams{chainparams} {};
 
     // TODO: Rename this to BuildSv2BlockTemplate
     CNewTemplate AssembleSv2BlockTemplate(const CBlock& block);

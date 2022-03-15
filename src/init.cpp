@@ -1881,7 +1881,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // chainstate is no active.
     assert(!node.sv2_distributor);
     node.sv2_distributor = std::make_unique<Sv2Distributor>(
-        node.chainman->ActiveChainstate(), *node.mempool, chainparams
+        *node.chainman, *node.mempool, chainparams
     );
     node.sv2_distributor->BindListenPort();
     node.sv2_distributor->Start();

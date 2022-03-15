@@ -3,6 +3,10 @@
 #include <util/thread.h>
 #include <util/syscall_sandbox.h>
 #include <sv2_distributor.h>
+
+// TMP: TO SIMULATE POW
+#include <pow.h>
+#include <consensus/merkle.h>
 /* #include <rusty/protocols/v2/sv2-ffi/sv2.h> */
 // TMP
 
@@ -34,6 +38,8 @@ CNewTemplate Sv2Distributor::AssembleSv2BlockTemplate(const CBlock& block)
 
     // TODO: Can keep this set to 0, since this will be modified by the client?
     ctemplate.coinbase_tx_value_remaining = 0;
+
+    // TODO: If this is empty, then should be encoded as 00 and the coinbase_tx_outputs should be an empty vec![];
     ctemplate.coinbase_tx_outputs_count = coinbase_tx->vout.size();
     
     CDataStream vout(SER_NETWORK, PROTOCOL_VERSION);
@@ -105,10 +111,12 @@ void Sv2Distributor::ThreadSv2Handler()
         address.sin_port = htons(8442); // TODO: tmp port number
         int addrlen = sizeof(address);
 
+        EncoderWrapper* encoder = new_encoder();
+
         while (!m_flag_interrupt_sv2) {
-            LogPrintf("CCDLE12: Restarting main while loop\n");
             // TODO: Tmp state to block any processing until IBD is complete
-            if (m_chainstate.IsInitialBlockDownload()) {
+            if (m_chainman.ActiveChainstate().IsInitialBlockDownload()) {
+                m_interrupt_sv2.sleep_for(std::chrono::milliseconds(500));
                 LogPrintf("DEBUG: Chainstate is in IBD\n");
                 continue;
             }
@@ -181,7 +189,7 @@ void Sv2Distributor::ThreadSv2Handler()
             }
 
             for (Sv2Client& client : m_sv2_clients) {
-                LogPrintf("CCDLE12: Iterating over client: %d\n", client.m_sock->Get());
+                /* LogPrintf("CCDLE12: Iterating over client: %d\n", client.m_sock->Get()); */
                 bool recvSet = false;
                 bool sendSet = false;
                 bool errSet = false;
@@ -246,15 +254,16 @@ void Sv2Distributor::ThreadSv2Handler()
                                                    // TODO: Send the SetupConnectionSuccess and figure out what to assign to used_version and flags.
                                                    // TODO: Maybe wrap this in a helper function to encode a message?
                                                    SetupConnectionSuccess setup_connection_success;
-                                                   setup_connection_success.used_version = 0; 
+                                                   setup_connection_success.used_version = 2; 
                                                    setup_connection_success.flags = 0;
+                                                   LogPrintf("CCDLE12 DEBUG\n");
 
                                                    CSv2Message response;
                                                    response.tag = CSv2Message::Tag::SetupConnectionSuccess;
                                                    response.setup_connection_success._0 = setup_connection_success;
 
-                                                   EncoderWrapper* encoder = new_encoder();
                                                    CResult<CVec, Sv2Error> encoded = encode(&response, encoder);
+                                                   LogPrintf("CCDLE12 DEBUG\n");
 
                                                    switch (encoded.tag) {
                                                        case CResult < CVec, Sv2Error > ::Tag::Ok:
@@ -264,7 +273,7 @@ void Sv2Distributor::ThreadSv2Handler()
                                                          // TODO: What do we do?
                                                          break;
                                                    }
-                                                  free_encoder(encoder);
+                                                   free_encoder(encoder);
                                                     
                                                   // TODO: CCDLE12 SV2 - tmp build a block and serialize it out over the fd.
                                                   // TODO: CDDLE12 SV2 - Build a block separately and pass it in as a reference to a blocktemplate
@@ -272,7 +281,8 @@ void Sv2Distributor::ThreadSv2Handler()
                                                   options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
                                                   options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
 
-                                                  std::unique_ptr<CBlockTemplate> blocktemplate = BlockAssembler(m_chainstate, m_mempool, m_chainparams, options).CreateNewBlock(CScript());
+                                                  /* std::unique_ptr<CBlockTemplate> blocktemplate = BlockAssembler(m_chainstate, m_mempool, m_chainparams, options).CreateNewBlock(CScript()); */
+                                                  std::unique_ptr<CBlockTemplate> blocktemplate = BlockAssembler(m_chainman.ActiveChainstate(), m_mempool, m_chainparams, options).CreateNewBlock(CScript());
 
                                                   // TODO: Rename to BuildSv2BlockTemplate
                                                   CNewTemplate sv2_new_template = AssembleSv2BlockTemplate(blocktemplate->block);
@@ -282,17 +292,19 @@ void Sv2Distributor::ThreadSv2Handler()
                                                   new_template_response.tag = CSv2Message::Tag::NewTemplate;
                                                   new_template_response.new_template._0 = sv2_new_template;
 
-                                                  EncoderWrapper* new_template_encoder = new_encoder();
-                                                  CResult<CVec, Sv2Error> new_template_encoded = encode(&response, new_template_encoder);
+                                                  CResult<CVec, Sv2Error> new_template_encoded = encode(&new_template_response, encoder);
 
                                                   switch (new_template_encoded.tag) {
                                                       case CResult < CVec, Sv2Error > ::Tag::Ok:
+                                                        LogPrintf("CCDLE12 DEBUG: BEFORE WRITING NEW TEMPLATE\n");
                                                         write(client.m_sock->Get(), new_template_encoded.ok._0.data, new_template_encoded.ok._0.len);
+                                                        LogPrintf("CCDLE12 DEBUG: AFTER WRITING NEW TEMPLATE\n");
                                                         break;
                                                       case CResult < CVec, Sv2Error > ::Tag::Err:
+                                                        LogPrintf("CCDLE12 DEBUG: encoding error for new_template\n");
                                                         break;
                                                   }
-                                                  free_encoder(new_template_encoder);
+                                                  free_encoder(encoder);
 
                                                   // TODO: Maybe just send a new new template hash here? I dont know why but I'll just do it anyway
                                                   // TODO: Can I reuse the encoder?
@@ -310,17 +322,18 @@ void Sv2Distributor::ThreadSv2Handler()
                                                   set_new_prev_hash_msg.tag = CSv2Message::Tag::SetNewPrevHash;
                                                   set_new_prev_hash_msg.set_new_prev_hash._0 = set_new_prev_hash;
 
-                                                  EncoderWrapper* new_prev_hash_encoder = new_encoder();
-                                                  CResult<CVec, Sv2Error> new_prev_hash_encoded = encode(&set_new_prev_hash_msg, new_prev_hash_encoder);
+                                                  CResult<CVec, Sv2Error> new_prev_hash_encoded = encode(&set_new_prev_hash_msg, encoder);
 
                                                   switch (new_prev_hash_encoded.tag) {
                                                       case CResult<CVec, Sv2Error>::Tag::Ok:
+                                                        LogPrintf("CCDLE12 DEBUG: BEFORE WRITING new prev hash\n");
                                                         write(client.m_sock->Get(), new_prev_hash_encoded.ok._0.data, new_prev_hash_encoded.ok._0.len);
+                                                        LogPrintf("CCDLE12 DEBUG: AFTER WRITING new prev hash\n");
                                                         break;
                                                       case CResult<CVec, Sv2Error>::Tag::Err:
                                                         break;
                                                   }
-                                                  free_encoder(new_prev_hash_encoder);
+                                                  free_encoder(encoder);
 
                                                   f = false;
                                                   break;
@@ -338,6 +351,40 @@ void Sv2Distributor::ThreadSv2Handler()
                                       case CSv2Message::Tag::SubmitSolution:
                                          {
                                              LogPrintf("CCDLE12: Received a submit solution\n");
+
+                                             // TODO: CCDLE12 SV2 - tmp build a block and serialize it out over the fd.
+                                             // TODO: CDDLE12 SV2 - Build a block separately and pass it in as a reference to a blocktemplate
+                                             BlockAssembler::Options options;
+                                             options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
+                                             options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
+
+                                             // TMP: Create a block for now, later use the block that was created and sent downstream.
+                                             std::unique_ptr<CBlockTemplate> blocktemplate = BlockAssembler(m_chainman.ActiveChainstate(), m_mempool, m_chainparams, options).CreateNewBlock(CScript());
+
+                                             LogPrintf("CCDLE12: Calling ProcessNewBlock()\n");
+                                             std::shared_ptr<CBlock> blockptr = std::make_shared<CBlock>(blocktemplate->block);
+
+                                             // TODO: We calculate the merkleroot before performing the POW. Need to send the merkle root in the SV2 Template?
+                                             bool mutated{true};
+                                             blockptr->hashMerkleRoot = BlockMerkleRoot(*blockptr, &mutated);
+                                             LogPrintf("CCDLE12: tx size in blockptr: %s\n", blockptr->vtx.size());
+                                             LogPrintf("CCDLE12: merkroot of blockptr: %s\n", blockptr->hashMerkleRoot.GetHex());
+
+                                             // TMP: To get the POW to pass.
+                                             // Maybe do this at the client side?
+                                             LogPrintf("CCDLE12: nBits of the block: %d\n", blockptr->nBits);
+                                             LogPrintf("CCDLE12: nNonce of the block: %d\n", blockptr->nNonce);
+                                             while (!CheckProofOfWork(blockptr->GetHash(), blockptr->nBits, m_chainparams.GetConsensus())) {
+                                                 LogPrintf("CCDLE12: Incrementing the nNonce until the proof of works passes\n");
+                                                 ++(blockptr->nNonce);
+                                             }
+                                             LogPrintf("CCDLE12: nNonce of the block AFTER: %d\n", blockptr->nNonce);
+
+                                             // TODO: This will send the block for processing, validation and sending out over the P2P network.
+                                             bool new_block{true};
+                                             bool res = m_chainman.ProcessNewBlock(m_chainparams, blockptr, true /* force_processing */, &new_block /* new_block */);
+                                             LogPrintf("CCDLE12: AFTER Calling ProcessNewBlock(): Result of ProcessNewBlock(): %d\n", res);
+
                                              f = false;
                                              break;
                                          }
