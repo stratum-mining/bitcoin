@@ -358,7 +358,7 @@ AC_ARG_ENABLE([template-provider],
     [AS_HELP_STRING([--enable-template-provider],[compile template provider (default is no, requires rustc)])],
     [AS_IF([test ${RUSTC} = yes],
             [
-                AC_DEFINE([ENABLE_TMEPLATE_PROVIDER],[1],[Define if TP should be compiled in])
+                AC_DEFINE([ENABLE_TEMPLATE_PROVIDER],[1],[Define if TP should be compiled in])
                 LDFLAGS="$LDFLAGS -lpthread -ldl"
                 add_template_provider=$enableval
             ],
@@ -1899,7 +1899,7 @@ AM_CONDITIONAL([USE_ASM], [test "$use_asm" = "yes"])
 AM_CONDITIONAL([WORDS_BIGENDIAN], [test "$ac_cv_c_bigendian" = "yes"])
 AM_CONDITIONAL([USE_NATPMP], [test "$use_natpmp" = "yes"])
 AM_CONDITIONAL([USE_UPNP], [test "$use_upnp" = "yes"])
-AM_CONDITIONAL([ENABLE_TMEPLATE_PROVIDER],[test "$add_template_provider" = "yes"])
+AM_CONDITIONAL([ENABLE_TEMPLATE_PROVIDER],[test "$add_template_provider" = "yes"])
 
 dnl for minisketch
 AM_CONDITIONAL([ENABLE_CLMUL], [test "$enable_clmul" = "yes"])
@@ -1979,7 +1979,7 @@ AC_SUBST(HAVE_MM_PREFETCH)
 AC_SUBST(HAVE_STRONG_GETAUXVAL)
 AC_SUBST(ANDROID_ARCH)
 AC_SUBST(HAVE_EVHTTP_CONNECTION_GET_PEER_CONST_CHAR)
-AC_SUBST(ENABLE_TMEPLATE_PROVIDER)
+AC_SUBST(ENABLE_TEMPLATE_PROVIDER)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile share/setup.nsi share/qt/Info.plist test/config.ini])
 AC_CONFIG_FILES([contrib/devtools/split-debug.sh],[chmod +x contrib/devtools/split-debug.sh])
 AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])

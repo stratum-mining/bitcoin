@@ -254,7 +254,7 @@ static bool AppInit(NodeContext& node, int argc, char* argv[])
 }
 
 
-#ifdef ENABLE_TMEPLATE_PROVIDER
+#ifdef ENABLE_TEMPLATE_PROVIDER
     #include <rusty/protocols/v2/sv2-ffi/sv2.h>
     // It uses the sv2_ffi library to build a correct Sv2 message and an incorrect one.
     // Then try to encode them, it print ok if the ecoding is possible it print err if not.
@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
     util::WinCmdLineArgs winArgs;
     std::tie(argc, argv) = winArgs.get();
 #endif
-#ifdef ENABLE_TMEPLATE_PROVIDER
+#ifdef ENABLE_TEMPLATE_PROVIDER
     test_template_provider();
 #else
 
