@@ -2057,6 +2057,7 @@ echo "  debug enabled   = $enable_debug"
 echo "  gprof enabled   = $enable_gprof"
 echo "  werror          = $enable_werror"
 echo "  LTO             = $enable_lto"
+echo "  with stratumv2 template provider = $add_template_provider"
 echo
 echo "  target os       = $host_os"
 echo "  build os        = $build_os"
