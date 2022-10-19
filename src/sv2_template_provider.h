@@ -274,19 +274,29 @@ public:
           << static_cast<uint8_t>(m_coinbase_prefix.size() + 1)
           << m_coinbase_prefix
           << m_coinbase_tx_input_sequence
-          << m_coinbase_tx_value_remaining
-          << m_coinbase_tx_outputs_count;
+          << m_coinbase_tx_value_remaining;
+        // TMP
+          /* << m_coinbase_tx_outputs_count; */
 
-        if (m_coinbase_tx_outputs_count > 0) {
-            std::vector<uint8_t> outputs_bytes;
-            CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, outputs_bytes, 0, m_coinbase_tx_outputs[0]};
+        /* if (m_coinbase_tx_outputs_count > 0) { */
+            /* std::vector<uint8_t> outputs_bytes; */
+            /* CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, outputs_bytes, 0, m_coinbase_tx_outputs[0]}; */
 
-            s << static_cast<uint16_t>(outputs_bytes.size());
-            s.write(MakeByteSpan(outputs_bytes));
-        } else {
-            // We still need to send 2 bytes indicating an empty coinbase-tx_outputs array.
-            s << static_cast<uint16_t>(0);
-        }
+            /* s << static_cast<uint16_t>(outputs_bytes.size()); */
+            /* s.write(MakeByteSpan(outputs_bytes)); */
+        /* } else { */
+            /* // We still need to send 2 bytes indicating an empty coinbase-tx_outputs array. */
+            /* s << static_cast<uint16_t>(0); */
+        /* } */
+        // TMP
+
+        // TMP
+// We still need to send 2 bytes indicating an empty coinbase-tx_outputs array.
+// coinbase tx outputs count
+s << static_cast<uint32_t>(0);
+// coinbase tx outputs
+s << static_cast<uint16_t>(0);
+        // TMP
 
         s << m_coinbase_tx_locktime
           << m_merkle_path;
