@@ -58,6 +58,7 @@ enum Sv2MsgType : uint8_t
     NEW_TEMPLATE = 0x71,
     SET_NEW_PREV_HASH = 0x72,
     SUBMIT_SOLUTION = 0x76,
+    COINBASE_OUTPUT_DATA_SIZE = 0x70,
 };
 
 /**
@@ -132,6 +133,26 @@ public:
         ReadSTR0_255(s, m_hardware_version);
         ReadSTR0_255(s, m_firmware);
         ReadSTR0_255(s, m_device_id);
+    }
+};
+
+/**
+ * Set the coinbase outputs data len for the outputs that the client want to add to the coinbase.
+ * The TP MUST NOT provide NewWork messages which would represent consensus-invalid blocks once this
+ * additional size — along with a maximally-sized (100 byte) coinbase field — is added.
+ */
+class CoinbaseOutputDataSize : Sv2Msg
+{
+public:
+    /**
+     * The maximum additional serialized bytes which the pool will add in coinbase transaction outputs
+     */
+    uint32_t m_coinbase_output_max_additional_size;
+
+
+    template <typename Stream>
+    void Unserialize(Stream& s) {
+        s >> m_coinbase_output_max_additional_size;
     }
 };
 
@@ -517,8 +538,16 @@ public:
      */
     bool m_disconnect_flag;
 
+    /**
+     * Whether the client has been received CoinbaseOutputDataSize message.
+     */
+    bool m_coinbase_output_data_size_recv;
+
+    unsigned int m_coinbase_tx_outputs_size;
+
     explicit Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)},
-             m_setup_connection_confirmed{false}, m_disconnect_flag{false} {};
+             m_setup_connection_confirmed{false}, m_disconnect_flag{false},  
+             m_coinbase_output_data_size_recv(false), m_coinbase_tx_outputs_size(0) {};
 };
 
 /**
@@ -610,7 +639,7 @@ private:
     /**
      * Builds a new block, caches it and builds the most recent and best NewTemplate from the new block.
      */
-    void UpdateTemplate(bool future);
+    void UpdateTemplate(bool future, unsigned int coinbase_tx_outputs_size );
 
     /**
      * Builds a new SetNewPrevHash referencing the best NewTemplate.

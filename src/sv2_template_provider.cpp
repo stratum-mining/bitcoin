@@ -57,7 +57,7 @@ void Sv2TemplateProvider::Start()
 
     {
       LOCK2(cs_main, m_mempool.cs);
-      UpdateTemplate(true);
+      UpdateTemplate(true, 0);
     }
 
     UpdatePrevHash();
@@ -81,7 +81,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                 if (g_best_block_cv.wait_until(lock, checktime) == std::cv_status::timeout)
                 {
                     if (m_best_prev_hash.m_prev_hash != g_best_block) {
-                        UpdateTemplate(true);
+                        UpdateTemplate(true, 0);
                         UpdatePrevHash();
                         OnNewBlock();
                     }
@@ -167,13 +167,13 @@ void Sv2TemplateProvider::UpdatePrevHash()
     }
 }
 
-void Sv2TemplateProvider::UpdateTemplate(bool future)
+void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size)
 {
     AssertLockHeld(cs_main);
     AssertLockHeld(m_mempool.cs);
 
     node::BlockAssembler::Options options;
-    options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
+    options.nBlockMaxWeight = MAX_BLOCK_WEIGHT - out_data_size;
     options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
 
     std::unique_ptr<node::CBlockTemplate> blocktemplate = node::BlockAssembler(m_chainman.ActiveChainstate(), &m_mempool, options).CreateNewBlock(CScript());
@@ -241,27 +241,49 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                write(client->m_sock->Get(), ss.data(), ss.size());
                ss.clear();
 
-               NewTemplate copy_new_template = m_new_template;
-               copy_new_template.m_future_template = false;
-
-               try {
-                 ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, copy_new_template};
-               } catch(const std::exception &e) {
-                   LogPrintf("Error writing copy_new_template\n");
-               }
-
-               write(client->m_sock->Get(), ss.data(), ss.size());
-               ss.clear();
-
-               try {
-                 ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
-               } catch(const std::exception &e) {
-                   LogPrintf("Error writing prev_hash\n");
-               }
-
-               write(client->m_sock->Get(), ss.data(), ss.size());
-               ss.clear();
             }
+            break;
+        }
+        case COINBASE_OUTPUT_DATA_SIZE:
+        {
+            if (! client->m_setup_connection_confirmed) {
+                return;
+            }
+            CoinbaseOutputDataSize coinbase_out_data_size;
+            try {
+                ss >> coinbase_out_data_size;
+                client->m_coinbase_output_data_size_recv = true;
+            } catch(const std::exception& e) {
+                return;
+            }
+            ss.clear();
+            
+
+            try {
+              ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
+            } catch(const std::exception &e) {
+                LogPrintf("Error writing prev_hash\n");
+            }
+
+            write(client->m_sock->Get(), ss.data(), ss.size());
+            ss.clear();
+
+
+            client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
+            UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+
+            NewTemplate copy_new_template = m_new_template;
+            copy_new_template.m_future_template = false;
+
+            try {
+              ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, copy_new_template};
+            } catch(const std::exception &e) {
+                LogPrintf("Error writing copy_new_template\n");
+            }
+
+            write(client->m_sock->Get(), ss.data(), ss.size());
+            ss.clear();
+
             break;
         }
         case SUBMIT_SOLUTION:
@@ -296,7 +318,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
                     {
                         LOCK2(cs_main, m_mempool.cs);
-                        UpdateTemplate(true);
+                        UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
                         UpdatePrevHash();
                     }
 
