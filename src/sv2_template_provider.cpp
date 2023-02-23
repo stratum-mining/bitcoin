@@ -198,7 +198,8 @@ void Sv2TemplateProvider::OnNewBlock() {
             LogPrintf("Error writing m_new_template\n");
         }
 
-        write(client->m_sock->Get(), ss.data(), ss.size());
+        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+        client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         ss.clear();
 
         try {
@@ -207,7 +208,8 @@ void Sv2TemplateProvider::OnNewBlock() {
             LogPrintf("Error writing m_best_prev_hash\n");
         }
 
-        write(client->m_sock->Get(), ss.data(), ss.size());
+        client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
     }
 }
 
@@ -238,7 +240,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                SetupConnectionSuccess setup_success{2, 0};
                ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
-               write(client->m_sock->Get(), ss.data(), ss.size());
+               client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+               /* write(client->m_sock->Get(), ss.data(), ss.size()); */
                ss.clear();
 
             }
@@ -265,7 +268,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                 LogPrintf("Error writing prev_hash\n");
             }
 
-            write(client->m_sock->Get(), ss.data(), ss.size());
+            /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+            client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             ss.clear();
 
 
@@ -278,7 +282,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                 LogPrintf("Error writing copy_new_template\n");
             }
 
-            write(client->m_sock->Get(), ss.data(), ss.size());
+            /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+            client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             ss.clear();
 
             break;
