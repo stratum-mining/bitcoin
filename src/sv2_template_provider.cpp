@@ -387,7 +387,9 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::
     fd_set fd_set_recv, fd_set_error;
     FD_ZERO(&fd_set_recv);
     FD_ZERO(&fd_set_error);
-    int socket_max = 0;
+
+    // TODO: Try using SOCKET to be win32 compatible.
+    SOCKET socket_max = 0;
 
     for (const auto socket : recv_select_set) {
         FD_SET(socket, &fd_set_recv);
