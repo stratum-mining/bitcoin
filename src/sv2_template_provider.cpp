@@ -272,11 +272,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
             UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
 
-            NewTemplate copy_new_template = m_new_template;
-            copy_new_template.m_future_template = false;
-
             try {
-              ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, copy_new_template};
+              ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
             } catch(const std::exception &e) {
                 LogPrintf("Error writing copy_new_template\n");
             }
