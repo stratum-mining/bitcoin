@@ -324,8 +324,8 @@ test_fuzz_fuzz_SOURCES = \
  test/fuzz/span.cpp \
  test/fuzz/spanparsing.cpp \
  test/fuzz/string.cpp \
- test/fuzz/strprintf.cpp \
  test/fuzz/sv2_template_provider.cpp \
+ test/fuzz/strprintf.cpp \
  test/fuzz/system.cpp \
  test/fuzz/timedata.cpp \
  test/fuzz/torcontrol.cpp \
