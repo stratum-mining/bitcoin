@@ -199,7 +199,11 @@ void Sv2TemplateProvider::OnNewBlock() {
         }
 
         /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-        client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        // TODO: Maybe I need to static_cast?
+        if (sent != (ssize_t)ss.size()) {
+            LogPrintf("Failed to send\n");
+        }
         ss.clear();
 
         try {
@@ -208,7 +212,10 @@ void Sv2TemplateProvider::OnNewBlock() {
             LogPrintf("Error writing m_best_prev_hash\n");
         }
 
-        client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (sent != (ssize_t)ss.size()) {
+            LogPrintf("Failed to send\n");
+        }
         /* write(client->m_sock->Get(), ss.data(), ss.size()); */
     }
 }
@@ -240,7 +247,10 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                SetupConnectionSuccess setup_success{2, 0};
                ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
-               client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+               ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+               if (sent != (ssize_t)ss.size()) {
+                   LogPrintf("Failed to send\n");
+               }
                /* write(client->m_sock->Get(), ss.data(), ss.size()); */
                ss.clear();
 
@@ -269,7 +279,10 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             }
 
             /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-            client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+           if (sent != (ssize_t)ss.size()) {
+               LogPrintf("Failed to send\n");
+           }
             ss.clear();
 
 
@@ -283,7 +296,10 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             }
 
             /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-            client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+           if (sent != (ssize_t)ss.size()) {
+               LogPrintf("Failed to send\n");
+           }
             ss.clear();
 
             break;
