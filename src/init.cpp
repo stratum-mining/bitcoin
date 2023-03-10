@@ -1793,11 +1793,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     if (node.peerman) node.peerman->StartScheduledTasks(*node.scheduler);
 
+// TODO: Maybe move this above Step 13?
 #ifdef ENABLE_TEMPLATE_PROVIDER
     assert(!node.sv2_template_provider);
     node.sv2_template_provider = std::make_unique<Sv2TemplateProvider>(*node.chainman, *node.mempool);
 
+    // TODO: Maybe move the default port to params?
     uint16_t sv2_port{static_cast<uint16_t>(gArgs.GetIntArg("-stratumv2", 8442))};
+
+    // TODO: Handle error here?
     node.sv2_template_provider->BindListenPort(sv2_port);
     node.sv2_template_provider->Start();
 #endif
