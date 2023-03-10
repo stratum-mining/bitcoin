@@ -344,9 +344,13 @@ def p2p_port(n):
     return PORT_MIN + n + (MAX_NODES * PortSeed.n) % (PORT_RANGE - 1 - MAX_NODES)
 
 
+# TODO: Maybe this does need to be different because I think the rpc port and the sv2_port will be the same. Maybe the sv2_port needs to be PORT_RANGE - 2 - MAX_NODES?
 def rpc_port(n):
     return PORT_MIN + PORT_RANGE + n + (MAX_NODES * PortSeed.n) % (PORT_RANGE - 1 - MAX_NODES)
 
+# TODO: Is there a better way to do this? like maybe call rpc_port() * 2?
+def sv2_port(n):
+    return PORT_MIN + (PORT_RANGE*2) + MAX_NODES + n + (MAX_NODES * PortSeed.n) % (PORT_RANGE - 1 - MAX_NODES)
 
 def rpc_url(datadir, i, chain, rpchost):
     rpc_u, rpc_p = get_auth_cookie(datadir, chain)
@@ -384,12 +388,25 @@ def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=
         chain_name_conf_arg = chain
         chain_name_conf_section = chain
     with open(config_path, 'w', encoding='utf8') as f:
+        # TMP DEBUG:
+        p = str(p2p_port(n))
+        print("p2p_port: " + p)
+        r = str(rpc_port(n))
+        print("rpc_port: " + r)
+        s = str(sv2_port(n))
+        print("sv2_port: " + s)
+
+        # TMP DEBUG:
         if chain_name_conf_arg:
             f.write("{}=1\n".format(chain_name_conf_arg))
         if chain_name_conf_section:
             f.write("[{}]\n".format(chain_name_conf_section))
-        f.write("port=" + str(p2p_port(n)) + "\n")
-        f.write("rpcport=" + str(rpc_port(n)) + "\n")
+        # f.write("port=" + str(p2p_port(n)) + "\n")
+        # f.write("rpcport=" + str(rpc_port(n)) + "\n")
+        # f.write("stratumv2=" + str(sv2_port(n)) + "\n")
+        f.write("port=" + p + "\n")
+        f.write("rpcport=" + r + "\n")
+        f.write("stratumv2=" + s + "\n")
         f.write("rpcdoccheck=1\n")
         f.write("fallbackfee=0.0002\n")
         f.write("server=1\n")
