@@ -287,7 +287,10 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
 
             client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
-            UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+            {
+                LOCK2(cs_main, m_mempool.cs);
+                UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+            }
 
             try {
               ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
