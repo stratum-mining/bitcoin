@@ -135,6 +135,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                 try {
                     ss >> sv2_header;
                 } catch (const std::exception &e) {
+                    LogPrintf("Received invalid header: %s\n", e.what());
                     client->m_disconnect_flag = true;
                     continue;
                 }
@@ -195,7 +196,7 @@ void Sv2TemplateProvider::OnNewBlock() {
         try {
             ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
         } catch(const std::exception &e) {
-            LogPrintf("Error writing m_new_template\n");
+            LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
 
         /* write(client->m_sock->Get(), ss.data(), ss.size()); */
@@ -209,7 +210,7 @@ void Sv2TemplateProvider::OnNewBlock() {
         try {
             ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
         } catch(const std::exception &e) {
-            LogPrintf("Error writing m_best_prev_hash\n");
+            LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
         }
 
         sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
@@ -236,6 +237,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             try {
                 ss >> setup_conn;
             } catch(const std::exception& e) {
+                LogPrintf("Received invalid SetupConnection message: %s\n", e.what());
                 client->m_disconnect_flag = true;
                 return;
             }
@@ -270,12 +272,11 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
                 return;
             }
             ss.clear();
-            
 
             try {
               ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
             } catch(const std::exception &e) {
-                LogPrintf("Error writing prev_hash\n");
+                LogPrintf("Error writing prev_hash: %e\n", e.what());
             }
 
             /* write(client->m_sock->Get(), ss.data(), ss.size()); */
@@ -295,7 +296,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             try {
               ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
             } catch(const std::exception &e) {
-                LogPrintf("Error writing copy_new_template\n");
+                LogPrintf("Error writing copy_new_template: %e\n", e.what());
             }
 
             /* write(client->m_sock->Get(), ss.data(), ss.size()); */
@@ -313,6 +314,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             try {
                 ss >> submit_solution;
             } catch(const std::exception& e) {
+                LogPrintf("Received invalid SubmitSolution message: %e\n", e.what());
                 return;
             }
             ss.clear();
