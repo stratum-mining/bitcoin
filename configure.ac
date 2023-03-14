@@ -348,7 +348,10 @@ AC_ARG_ENABLE([template-provider],
   [build with a stratumv2 template provider. (default is no)])],
   [enable_template_provider=$enableval],
   [enable_template_provider=no])
-AC_DEFINE([ENABLE_TEMPLATE_PROVIDER], [1], [Define if the Template Provider is enabled])
+
+if test "$enable_template_provider" != "no"; then
+    AC_DEFINE([ENABLE_TEMPLATE_PROVIDER], [1], [Define if the Template Provider is enabled])
+fi
 
 AC_LANG_PUSH([C++])
 
