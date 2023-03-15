@@ -38,7 +38,7 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
             throw std::runtime_error(strprintf("Unable to bind to %s on this computer. %s is probably already running.\n", addr_bind.ToString(), PACKAGE_NAME));
         }
 
-        throw std::runtime_error(strprintf("Unable to bind to %s on this computer (bind returned error %s on this computer (bind returned error %s )\n", addr_bind.ToString(), NetworkErrorString(nErr)));
+        throw std::runtime_error(strprintf("Unable to bind to %s on this computer (bind returned error %s )\n", addr_bind.ToString(), NetworkErrorString(nErr)));
     }
 
     if ((listen(sock->Get(), 4096)) == SOCKET_ERROR) {
