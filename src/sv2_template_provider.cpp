@@ -1,14 +1,15 @@
-#include <sv2_template_provider.h>
 #include <consensus/merkle.h>
 #include <netbase.h>
-#include <validation.h>
+#include <sv2_template_provider.h>
 #include <util/thread.h>
+#include <validation.h>
 
 #ifdef USE_POLL
 #include <poll.h>
 #endif
 
-uint64_t TemplateId::Next() {
+uint64_t TemplateId::Next()
+{
     uint64_t next = m_id;
     m_id += 1;
 
@@ -56,8 +57,8 @@ void Sv2TemplateProvider::Start()
     m_blocks_cache = std::map<uint64_t, std::unique_ptr<node::CBlockTemplate>>();
 
     {
-      LOCK2(cs_main, m_mempool.cs);
-      UpdateTemplate(true, 0);
+        LOCK2(cs_main, m_mempool.cs);
+        UpdateTemplate(true, 0);
     }
 
     UpdatePrevHash();
@@ -78,8 +79,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
             WAIT_LOCK(g_best_block_mutex, lock);
             {
                 auto checktime = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
-                if (g_best_block_cv.wait_until(lock, checktime) == std::cv_status::timeout)
-                {
+                if (g_best_block_cv.wait_until(lock, checktime) == std::cv_status::timeout) {
                     if (m_best_prev_hash.m_prev_hash != g_best_block) {
                         UpdateTemplate(true, 0);
                         UpdatePrevHash();
@@ -104,7 +104,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
         }
 
         std::vector<Sv2Client*> clients_copy = m_sv2_clients;
-        for (Sv2Client* client: clients_copy) {
+        for (Sv2Client* client : clients_copy) {
             if (client->m_disconnect_flag) {
                 m_sv2_clients.erase(remove(m_sv2_clients.begin(), m_sv2_clients.end(), client), m_sv2_clients.end());
                 delete client;
@@ -134,7 +134,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                 Sv2Header sv2_header;
                 try {
                     ss >> sv2_header;
-                } catch (const std::exception &e) {
+                } catch (const std::exception& e) {
                     LogPrintf("Received invalid header: %s\n", e.what());
                     client->m_disconnect_flag = true;
                     continue;
@@ -185,7 +185,8 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
     m_new_template = new_template;
 }
 
-void Sv2TemplateProvider::OnNewBlock() {
+void Sv2TemplateProvider::OnNewBlock()
+{
     for (Sv2Client* client : m_sv2_clients) {
         if (!client->m_setup_connection_confirmed) {
             continue;
@@ -195,7 +196,7 @@ void Sv2TemplateProvider::OnNewBlock() {
 
         try {
             ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
-        } catch(const std::exception &e) {
+        } catch (const std::exception& e) {
             LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
 
@@ -209,7 +210,7 @@ void Sv2TemplateProvider::OnNewBlock() {
 
         try {
             ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
-        } catch(const std::exception &e) {
+        } catch (const std::exception& e) {
             LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
         }
 
@@ -225,145 +226,140 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 {
     if (!client) return;
 
-    switch(sv2_header.m_msg_type)
-    {
-        case SETUP_CONNECTION:
-        {
-            if (client->m_setup_connection_confirmed) {
-                return;
-            }
-
-            SetupConnection setup_conn;
-            try {
-                ss >> setup_conn;
-            } catch(const std::exception& e) {
-                LogPrintf("Received invalid SetupConnection message: %s\n", e.what());
-                client->m_disconnect_flag = true;
-                return;
-            }
-            ss.clear();
-
-            if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
-               client->m_setup_connection_confirmed = true;
-
-               SetupConnectionSuccess setup_success{2, 0};
-               ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
-
-               ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-               if (sent != (ssize_t)ss.size()) {
-                   LogPrintf("Failed to send\n");
-               }
-               /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-               ss.clear();
-
-            }
-            break;
+    switch (sv2_header.m_msg_type) {
+    case SETUP_CONNECTION: {
+        if (client->m_setup_connection_confirmed) {
+            return;
         }
-        case COINBASE_OUTPUT_DATA_SIZE:
-        {
-            if (! client->m_setup_connection_confirmed) {
-                return;
-            }
-            CoinbaseOutputDataSize coinbase_out_data_size;
-            try {
-                ss >> coinbase_out_data_size;
-                client->m_coinbase_output_data_size_recv = true;
-            } catch(const std::exception& e) {
-                return;
-            }
-            ss.clear();
 
-            try {
-              ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
-            } catch(const std::exception &e) {
-                LogPrintf("Error writing prev_hash: %e\n", e.what());
-            }
+        SetupConnection setup_conn;
+        try {
+            ss >> setup_conn;
+        } catch (const std::exception& e) {
+            LogPrintf("Received invalid SetupConnection message: %s\n", e.what());
+            client->m_disconnect_flag = true;
+            return;
+        }
+        ss.clear();
 
-            /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+        if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
+            client->m_setup_connection_confirmed = true;
+
+            SetupConnectionSuccess setup_success{2, 0};
+            ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
+
             ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-           if (sent != (ssize_t)ss.size()) {
-               LogPrintf("Failed to send\n");
-           }
-            ss.clear();
-
-
-            client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
-            {
-                LOCK2(cs_main, m_mempool.cs);
-                UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+            if (sent != (ssize_t)ss.size()) {
+                LogPrintf("Failed to send\n");
             }
-
-            try {
-              ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
-            } catch(const std::exception &e) {
-                LogPrintf("Error writing copy_new_template: %e\n", e.what());
-            }
-
             /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-            sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-           if (sent != (ssize_t)ss.size()) {
-               LogPrintf("Failed to send\n");
-           }
             ss.clear();
-
-            break;
         }
-        case SUBMIT_SOLUTION:
+        break;
+    }
+    case COINBASE_OUTPUT_DATA_SIZE: {
+        if (!client->m_setup_connection_confirmed) {
+            return;
+        }
+        CoinbaseOutputDataSize coinbase_out_data_size;
+        try {
+            ss >> coinbase_out_data_size;
+            client->m_coinbase_output_data_size_recv = true;
+        } catch (const std::exception& e) {
+            return;
+        }
+        ss.clear();
+
+        try {
+            ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
+        } catch (const std::exception& e) {
+            LogPrintf("Error writing prev_hash: %e\n", e.what());
+        }
+
+        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+        ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (sent != (ssize_t)ss.size()) {
+            LogPrintf("Failed to send\n");
+        }
+        ss.clear();
+
+
+        client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
         {
-            SubmitSolution submit_solution;
-            try {
-                ss >> submit_solution;
-            } catch(const std::exception& e) {
-                LogPrintf("Received invalid SubmitSolution message: %e\n", e.what());
-                return;
-            }
-            ss.clear();
+            LOCK2(cs_main, m_mempool.cs);
+            UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+        }
 
-            auto cached_block = m_blocks_cache.find(submit_solution.m_template_id);
-            if (cached_block != m_blocks_cache.end()) {
-                auto block_template = *cached_block->second;
-                CBlock& block = block_template.block;
+        try {
+            ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
+        } catch (const std::exception& e) {
+            LogPrintf("Error writing copy_new_template: %e\n", e.what());
+        }
 
-                auto coinbase_tx = CTransaction(std::move(submit_solution.m_coinbase_tx));
-                block.vtx[0] = std::make_shared<CTransaction>(std::move(coinbase_tx));
+        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
+        sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (sent != (ssize_t)ss.size()) {
+            LogPrintf("Failed to send\n");
+        }
+        ss.clear();
 
-                block.nVersion = submit_solution.m_version;
-                block.nTime = submit_solution.m_header_timestamp;
-                block.nNonce = submit_solution.m_header_nonce;
-                block.hashMerkleRoot = BlockMerkleRoot(block);
+        break;
+    }
+    case SUBMIT_SOLUTION: {
+        SubmitSolution submit_solution;
+        try {
+            ss >> submit_solution;
+        } catch (const std::exception& e) {
+            LogPrintf("Received invalid SubmitSolution message: %e\n", e.what());
+            return;
+        }
+        ss.clear();
 
-                auto blockptr = std::make_shared<CBlock>(std::move(block));
+        auto cached_block = m_blocks_cache.find(submit_solution.m_template_id);
+        if (cached_block != m_blocks_cache.end()) {
+            auto block_template = *cached_block->second;
+            CBlock& block = block_template.block;
 
-                bool new_block{true};
-                bool res = m_chainman.ProcessNewBlock(blockptr, true /* force_processing */, true /* min_pow_checked */, &new_block);
-                if (res) {
-                    m_blocks_cache.erase(submit_solution.m_template_id);
+            auto coinbase_tx = CTransaction(std::move(submit_solution.m_coinbase_tx));
+            block.vtx[0] = std::make_shared<CTransaction>(std::move(coinbase_tx));
 
-                    {
-                        LOCK2(cs_main, m_mempool.cs);
-                        UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
-                        UpdatePrevHash();
-                    }
+            block.nVersion = submit_solution.m_version;
+            block.nTime = submit_solution.m_header_timestamp;
+            block.nNonce = submit_solution.m_header_nonce;
+            block.hashMerkleRoot = BlockMerkleRoot(block);
 
-                    OnNewBlock();
+            auto blockptr = std::make_shared<CBlock>(std::move(block));
+
+            bool new_block{true};
+            bool res = m_chainman.ProcessNewBlock(blockptr, true /* force_processing */, true /* min_pow_checked */, &new_block);
+            if (res) {
+                m_blocks_cache.erase(submit_solution.m_template_id);
+
+                {
+                    LOCK2(cs_main, m_mempool.cs);
+                    UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+                    UpdatePrevHash();
                 }
+
+                OnNewBlock();
             }
-            break;
         }
-        default:
-        {
-            break;
-        }
+        break;
+    }
+    default: {
+        break;
+    }
     }
 }
 
 #ifdef USE_POLL
-void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::set<SOCKET> &err_set) {
+void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& err_set)
+{
     std::set<SOCKET> recv_select_set, error_select_set;
 
     recv_select_set.insert(m_listening_socket->Get());
 
-    for (const Sv2Client *client : m_sv2_clients) {
+    for (const Sv2Client* client : m_sv2_clients) {
         if (!client->m_disconnect_flag) {
             recv_select_set.insert(client->m_sock->Get());
             error_select_set.insert(client->m_sock->Get());
@@ -378,7 +374,7 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::
 
     for (const SOCKET socket_id : error_select_set) {
         pollfds[socket_id].fd = socket_id;
-        pollfds[socket_id].events |= POLLERR|POLLHUP;
+        pollfds[socket_id].events |= POLLERR | POLLHUP;
     }
 
     std::vector<struct pollfd> vpollfds;
@@ -390,12 +386,13 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::
     if (poll(vpollfds.data(), vpollfds.size(), 500) < 0) return;
 
     for (struct pollfd pollfd_entry : vpollfds) {
-        if (pollfd_entry.revents & POLLIN)            recv_set.insert(pollfd_entry.fd);
-        if (pollfd_entry.revents & (POLLERR|POLLHUP)) err_set.insert(pollfd_entry.fd);
+        if (pollfd_entry.revents & POLLIN) recv_set.insert(pollfd_entry.fd);
+        if (pollfd_entry.revents & (POLLERR | POLLHUP)) err_set.insert(pollfd_entry.fd);
     }
 }
 #else
-void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::set<SOCKET> &err_set) {
+void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& err_set)
+{
     std::set<SOCKET> recv_select_set, err_select_set;
 
     recv_select_set.insert(m_listening_socket->Get());
@@ -425,7 +422,7 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET> &recv_set, std::
     }
 
     struct timeval timeout;
-    timeout.tv_sec  = 0;
+    timeout.tv_sec = 0;
     timeout.tv_usec = 50 * 1000; // frequency to call select
 
     select(socket_max + 1, &fd_set_recv, nullptr, &fd_set_error, &timeout);
