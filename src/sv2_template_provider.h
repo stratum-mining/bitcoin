@@ -1,9 +1,9 @@
 #ifndef SV2_TEMPLATE_PROVIDER_H
 #define SV2_TEMPLATE_PROVIDER_H
 
-#include <streams.h>
-#include <node/miner.h>
 #include <arith_uint256.h>
+#include <node/miner.h>
+#include <streams.h>
 #include <uint256.h>
 #include <util/sock.h>
 
@@ -13,7 +13,7 @@
 using u24_t = uint8_t[3];
 
 /**
- * The template provider subprotocol used in setup connection messages. The stratum v2 
+ * The template provider subprotocol used in setup connection messages. The stratum v2
  * template provider only recognizes its own subprotocol.
  */
 static constexpr uint8_t SETUP_CONN_TP_PROTOCOL{0x02};
@@ -51,8 +51,7 @@ public:
 /**
  * All the stratum v2 message types handled by the template provider.
  */
-enum Sv2MsgType : uint8_t
-{
+enum Sv2MsgType : uint8_t {
     SETUP_CONNECTION = 0x00,
     SETUP_CONNECTION_SUCCESS = 0x01,
     NEW_TEMPLATE = 0x71,
@@ -85,7 +84,7 @@ public:
     uint16_t m_max_version;
 
     /**
-     * Flags indicating optional protocol features the client supports. Each protocol 
+     * Flags indicating optional protocol features the client supports. Each protocol
      * from protocol field has its own values/flags.
      */
     uint32_t m_flags;
@@ -121,11 +120,9 @@ public:
     std::string m_device_id;
 
     template <typename Stream>
-    void Unserialize(Stream& s) {
-        s >> m_protocol
-          >> m_min_version
-          >> m_max_version
-          >> m_flags;
+    void Unserialize(Stream& s)
+    {
+        s >> m_protocol >> m_min_version >> m_max_version >> m_flags;
 
         ReadSTR0_255(s, m_endpoint_host);
         s >> m_endpoint_port;
@@ -151,13 +148,14 @@ public:
 
 
     template <typename Stream>
-    void Unserialize(Stream& s) {
+    void Unserialize(Stream& s)
+    {
         s >> m_coinbase_output_max_additional_size;
     }
 };
 
 /**
- * Response to the SetupConnection message if the server accepts the connection. 
+ * Response to the SetupConnection message if the server accepts the connection.
  * The client is required to verify the set of feature flags that the server
  * supports and act accordingly.
  */
@@ -165,21 +163,22 @@ class SetupConnectionSuccess : Sv2Msg
 {
 public:
     /**
-     * Selected version proposed by the connecting node that the upstream node supports. 
+     * Selected version proposed by the connecting node that the upstream node supports.
      * This version will be used on the connection for the rest of its life.
      */
     uint16_t m_used_version;
 
     /**
-     * Flags indicating optional protocol features the server supports. Each protocol 
+     * Flags indicating optional protocol features the server supports. Each protocol
      * from protocol field has its own values/flags.
      */
     uint32_t m_flags;
 
-    explicit SetupConnectionSuccess(uint16_t used_version, uint32_t flags): m_used_version{used_version}, m_flags{flags} {};
+    explicit SetupConnectionSuccess(uint16_t used_version, uint32_t flags) : m_used_version{used_version}, m_flags{flags} {};
 
     template <typename Stream>
-    void Serialize(Stream& s) const {
+    void Serialize(Stream& s) const
+    {
         s << m_used_version
           << m_flags;
     }
@@ -193,21 +192,21 @@ class NewTemplate : Sv2Msg
 {
 public:
     /**
-     * Server’s identification of the template. Strictly increasing, the current UNIX 
+     * Server’s identification of the template. Strictly increasing, the current UNIX
      * time may be used in place of an ID.
      */
     uint64_t m_template_id;
 
     /**
      * True if the template is intended for future SetNewPrevHash message sent on the channel.
-     * If False, the job relates to the last sent SetNewPrevHash message on the channel 
+     * If False, the job relates to the last sent SetNewPrevHash message on the channel
      * and the miner should start to work on the job immediately. */
     bool m_future_template;
 
     /**
-     * Valid header version field that reflects the current network consensus. 
-     * The general purpose bits (as specified in BIP320) can be freely manipulated 
-     * by the downstream node. The downstream node MUST NOT rely on the upstream 
+     * Valid header version field that reflects the current network consensus.
+     * The general purpose bits (as specified in BIP320) can be freely manipulated
+     * by the downstream node. The downstream node MUST NOT rely on the upstream
      * node to set the BIP320 bits to any particular value.
      */
     uint32_t m_version;
@@ -229,8 +228,8 @@ public:
     uint32_t m_coinbase_tx_input_sequence;
 
     /**
-     * The value, in satoshis, available for spending in coinbase outputs added 
-     * by the client. Includes both transaction fees and block subsidy. 
+     * The value, in satoshis, available for spending in coinbase outputs added
+     * by the client. Includes both transaction fees and block subsidy.
      */
     uint64_t m_coinbase_tx_value_remaining;
 
@@ -240,7 +239,7 @@ public:
     uint32_t m_coinbase_tx_outputs_count;
 
     /**
-     * Bitcoin transaction outputs to be included as the last outputs in the coinbase transaction. 
+     * Bitcoin transaction outputs to be included as the last outputs in the coinbase transaction.
      */
     std::vector<CTxOut> m_coinbase_tx_outputs;
 
@@ -277,7 +276,7 @@ public:
             m_coinbase_tx_outputs = coinbase_tx_outputs;
         }
 
-        m_coinbase_tx_locktime =  coinbase_tx->nLockTime;
+        m_coinbase_tx_locktime = coinbase_tx->nLockTime;
 
         // Skip the coinbase_tx hash from the merkle path, as the downstream client
         // will build their own coinbase tx.
@@ -287,7 +286,8 @@ public:
     };
 
     template <typename Stream>
-    void Serialize(Stream& s) const {
+    void Serialize(Stream& s) const
+    {
         s << m_template_id
           << m_future_template
           << m_version
@@ -295,18 +295,18 @@ public:
           << m_coinbase_prefix
           << m_coinbase_tx_input_sequence
           << m_coinbase_tx_value_remaining;
-          if (m_coinbase_tx_outputs_count > 0) {
-           s << static_cast<uint32_t>(m_coinbase_tx_outputs_count);
+        if (m_coinbase_tx_outputs_count > 0) {
+            s << static_cast<uint32_t>(m_coinbase_tx_outputs_count);
 
-           std::vector<uint8_t> outputs_bytes;
-           CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, outputs_bytes, 0, m_coinbase_tx_outputs[0]};
+            std::vector<uint8_t> outputs_bytes;
+            CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, outputs_bytes, 0, m_coinbase_tx_outputs[0]};
 
-           s << static_cast<uint16_t>(outputs_bytes.size());
-           s.write(MakeByteSpan(outputs_bytes));
-          } else {
-           // We still need to send 2 bytes indicating an empty coinbase-tx_outputs array. */
-           s << static_cast<uint16_t>(0);
-          }
+            s << static_cast<uint16_t>(outputs_bytes.size());
+            s.write(MakeByteSpan(outputs_bytes));
+        } else {
+            // We still need to send 2 bytes indicating an empty coinbase-tx_outputs array. */
+            s << static_cast<uint16_t>(0);
+        }
         s << m_coinbase_tx_locktime
           << m_merkle_path;
     }
@@ -361,7 +361,8 @@ public:
     }
 
     template <typename Stream>
-    void Serialize(Stream& s) const {
+    void Serialize(Stream& s) const
+    {
         s << m_template_id
           << m_prev_hash
           << m_header_timestamp
@@ -413,11 +414,9 @@ public:
     SubmitSolution(){};
 
     template <typename Stream>
-    void Unserialize(Stream& s) {
-        s >> m_template_id
-          >> m_version
-          >> m_header_timestamp
-          >> m_header_nonce;
+    void Unserialize(Stream& s)
+    {
+        s >> m_template_id >> m_version >> m_header_timestamp >> m_header_nonce;
 
         // Ignore the 2 byte length as the rest of the stream is assumed to be
         // the m_coinbase_tx.
@@ -448,7 +447,8 @@ public:
     explicit Sv2Header(Sv2MsgType msg_type, uint32_t msg_len) : m_msg_type{msg_type}, m_msg_len{msg_len} {};
 
     template <typename Stream>
-    void Serialize(Stream& s) const {
+    void Serialize(Stream& s) const
+    {
         // The Template Provider currently does not use the extension_type field,
         // but the field is still required for all headers.
         uint16_t extension_type = 0;
@@ -464,7 +464,8 @@ public:
     };
 
     template <typename Stream>
-    void Unserialize(Stream& s) {
+    void Unserialize(Stream& s)
+    {
         // Ignore the extension type (2 bytes) as the Template Provider currently doesn't
         // interpret this field.
         s.ignore(2);
@@ -491,21 +492,22 @@ public:
 template <typename M>
 class Sv2NetMsg
 {
-    public:
-        Sv2Header m_sv2_header;
-        std::vector<uint8_t> m_msg;
+public:
+    Sv2Header m_sv2_header;
+    std::vector<uint8_t> m_msg;
 
-        explicit Sv2NetMsg(const Sv2MsgType msg_type, const M& msg)
-        {
-            CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, m_msg, 0, msg};
-            m_sv2_header = Sv2Header{msg_type, static_cast<uint32_t>(m_msg.size())};
-        }
+    explicit Sv2NetMsg(const Sv2MsgType msg_type, const M& msg)
+    {
+        CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, m_msg, 0, msg};
+        m_sv2_header = Sv2Header{msg_type, static_cast<uint32_t>(m_msg.size())};
+    }
 
-        template <typename Stream>
-        void Serialize(Stream& s) const {
-            s << m_sv2_header;
-            s.write(MakeByteSpan(m_msg));
-        }
+    template <typename Stream>
+    void Serialize(Stream& s) const
+    {
+        s << m_sv2_header;
+        s.write(MakeByteSpan(m_msg));
+    }
 };
 
 class Sv2Client
@@ -534,8 +536,8 @@ public:
     unsigned int m_coinbase_tx_outputs_size;
 
     explicit Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)},
-             m_setup_connection_confirmed{false}, m_disconnect_flag{false},  
-             m_coinbase_output_data_size_recv(false), m_coinbase_tx_outputs_size(0) {};
+                                                     m_setup_connection_confirmed{false}, m_disconnect_flag{false},
+                                                     m_coinbase_output_data_size_recv(false), m_coinbase_tx_outputs_size(0){};
 };
 
 /**
@@ -544,8 +546,7 @@ public:
 class Sv2TemplateProvider
 {
 public:
-    explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : 
-        m_chainman{chainman}, m_mempool{mempool} {};
+    explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : m_chainman{chainman}, m_mempool{mempool} {};
 
     /**
      * Creates a socket and listens for new stratum v2 connections.
@@ -627,7 +628,7 @@ private:
     /**
      * Builds a new block, caches it and builds the most recent and best NewTemplate from the new block.
      */
-    void UpdateTemplate(bool future, unsigned int coinbase_tx_outputs_size ) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool.cs);
+    void UpdateTemplate(bool future, unsigned int coinbase_tx_outputs_size) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool.cs);
 
     /**
      * Builds a new SetNewPrevHash referencing the best NewTemplate.
@@ -643,7 +644,7 @@ private:
     /**
      * Generate recv and error events on each clients socket connection.
      */
-    void GenerateSocketEvents(std::set<SOCKET> &recv_set, std::set<SOCKET> &error_set);
+    void GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& error_set);
 
     /**
      * Main handler for all received stratum v2 messages.
