@@ -266,6 +266,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             ss >> coinbase_out_data_size;
             client->m_coinbase_output_data_size_recv = true;
         } catch (const std::exception& e) {
+            LogPrintf("Received invalid CoinbaseOutputDataSize message: %s\n", e.what());
             return;
         }
         ss.clear();
