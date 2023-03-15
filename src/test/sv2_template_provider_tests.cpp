@@ -5,9 +5,6 @@ BOOST_AUTO_TEST_SUITE(sv2_template_provider_tests)
 
 BOOST_AUTO_TEST_CASE(a)
 {
-    // TODO: Try importing something from sv2_template_provider.h
-
-    /* BOOST_CHECK(1 == 1); */
     uint8_t expected[]{
         0x03, // protocol
         0x02, 0x00, // min_version
@@ -181,13 +178,10 @@ BOOST_AUTO_TEST_CASE(NewTemplate_test)
 
     std::vector<uint8_t> bytes;
     for (unsigned int i = 0; i < sizeof(expected); ++i) {
-    printf("[");
         uint8_t b;
         ss >> b;
         bytes.push_back(b);
-        printf("%x,", b);
     }
-    printf("]\n");
     BOOST_CHECK(std::equal(bytes.begin(), bytes.end(), expected));
 }
 
