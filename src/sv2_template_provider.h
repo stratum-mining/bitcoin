@@ -1,5 +1,5 @@
-#ifndef SV2_TEMPLATE_PROVIDER_H
-#define SV2_TEMPLATE_PROVIDER_H
+#ifndef BITCOIN_SV2_TEMPLATE_PROVIDER_H
+#define BITCOIN_SV2_TEMPLATE_PROVIDER_H
 
 #include <arith_uint256.h>
 #include <node/miner.h>
@@ -68,7 +68,7 @@ class SetupConnection : Sv2Msg
 {
 public:
     /**
-     * Specifies the subprotocol for the new conncetion. It will always be TemplateDistribution
+     * Specifies the subprotocol for the new connection. It will always be TemplateDistribution
      * (0x02).
      */
     uint8_t m_protocol;
@@ -565,7 +565,7 @@ public:
     void ThreadSv2Handler();
 
     /**
-     * Tear down of the template provider thread and any other neccessary tear down.
+     * Tear down of the template provider thread and any other necessary tear down.
      */
     void StopThreads();
 
@@ -653,4 +653,4 @@ private:
 };
 
 
-#endif // SV2_TEMPLATE_PROVIDER_H
+#endif // BITCOIN_SV2_TEMPLATE_PROVIDER_H
