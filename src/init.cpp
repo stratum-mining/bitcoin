@@ -1767,6 +1767,20 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         return false;
     }
 
+#ifdef ENABLE_TEMPLATE_PROVIDER
+    assert(!node.sv2_template_provider);
+    assert(node.chainman);
+    assert(node.mempool);
+    node.sv2_template_provider = std::make_unique<Sv2TemplateProvider>(*node.chainman, *node.mempool);
+
+    // TODO: Maybe move the default port to params?
+    uint16_t sv2_port{static_cast<uint16_t>(gArgs.GetIntArg("-stratumv2", 8442))};
+
+    // TODO: Handle error here?
+    node.sv2_template_provider->BindListenPort(sv2_port);
+    node.sv2_template_provider->Start();
+#endif
+
     // ********************************************************* Step 13: finished
 
     // At this point, the RPC is "started", but still in warmup, which means it
@@ -1792,19 +1806,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }, DUMP_BANS_INTERVAL);
 
     if (node.peerman) node.peerman->StartScheduledTasks(*node.scheduler);
-
-// TODO: Maybe move this above Step 13?
-#ifdef ENABLE_TEMPLATE_PROVIDER
-    assert(!node.sv2_template_provider);
-    node.sv2_template_provider = std::make_unique<Sv2TemplateProvider>(*node.chainman, *node.mempool);
-
-    // TODO: Maybe move the default port to params?
-    uint16_t sv2_port{static_cast<uint16_t>(gArgs.GetIntArg("-stratumv2", 8442))};
-
-    // TODO: Handle error here?
-    node.sv2_template_provider->BindListenPort(sv2_port);
-    node.sv2_template_provider->Start();
-#endif
 
 #if HAVE_SYSTEM
     StartupNotify(args);
