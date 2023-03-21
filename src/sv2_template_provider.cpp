@@ -8,6 +8,7 @@
 #include <poll.h>
 #endif
 
+// TODO: I wonder if this is necessary?
 uint64_t TemplateId::Next()
 {
     uint64_t next = m_id;
@@ -51,18 +52,23 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
 
 void Sv2TemplateProvider::Start()
 {
+    // TODO: Is TemplateId really that neccessary?
+    // TODO: Is this copying of the the m_id really necessary?
     TemplateId id;
     id.m_id = 0;
     m_template_id = id;
-    m_blocks_cache = std::map<uint64_t, std::unique_ptr<node::CBlockTemplate>>();
 
     {
         LOCK2(cs_main, m_mempool.cs);
-        UpdateTemplate(true, 0);
+
+        constexpr auto default_coinbase_tx_output_size {0};
+        UpdateTemplate(true, default_coinbase_tx_output_size);
     }
 
+    // Update the best known previous hash.
     UpdatePrevHash();
 
+    // Start the dedicated Stratum V2 handler thread.
     m_thread_sv2_handler = std::thread(&util::TraceThread, "sv2", [this] { ThreadSv2Handler(); });
 };
 
@@ -158,10 +164,13 @@ void Sv2TemplateProvider::Interrupt()
     m_flag_interrupt_sv2 = true;
 }
 
+
 void Sv2TemplateProvider::UpdatePrevHash()
 {
     auto cached_block = m_blocks_cache.find(m_new_template.m_template_id);
 
+    // TODO: Use the best new templates cached block to create the best new prev hash that
+    // references that block?
     if (cached_block != m_blocks_cache.end()) {
         const CBlock block = cached_block->second->block;
         m_best_prev_hash = SetNewPrevHash{block, m_new_template.m_template_id};
