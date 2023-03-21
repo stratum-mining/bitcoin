@@ -537,22 +537,10 @@ class Sv2TemplateProvider
 {
 public:
     explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : m_chainman{chainman}, m_mempool{mempool} {};
-
-    /**
-     * Creates a socket and listens for new stratum v2 connections.
-     */
-    void BindListenPort(uint16_t port);
-
     /**
      * Starts the template provider server and thread.
      */
-    void Start();
-
-    /**
-     * The main thread for the template provider, contains an event loop handling
-     * all tasks for the template provider.
-     */
-    void ThreadSv2Handler();
+    void Start(uint16_t port);
 
     /**
      * Tear down of the template provider thread and any other necessary tear down.
@@ -614,6 +602,17 @@ private:
      * block hash as the previous hash.
      */
     SetNewPrevHash m_best_prev_hash;
+
+    /**
+     * Creates a socket and binds the port for new stratum v2 connections.
+     */
+    void BindListenPort(uint16_t port);
+
+    /**
+     * The main thread for the template provider, contains an event loop handling
+     * all tasks for the template provider.
+     */
+    void ThreadSv2Handler();
 
     /**
      * Builds a new block, caches it and builds the most recent and best NewTemplate from the new block.

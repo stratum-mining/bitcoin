@@ -42,9 +42,13 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
     LogPrintf("Sv2 Template Provider listening on port: %d\n", port);
 };
 
-void Sv2TemplateProvider::Start()
+void Sv2TemplateProvider::Start(uint16_t port)
 {
-    // TODO: I think m_template_id will always be 0???, should I explicitly reset it to 0 here?
+    // For now, not handling the BindListenPort method since if a port cannot be opened
+    // for the template provider, the process should exit.
+    BindListenPort(port);
+
+    // Build and cache a block for the best new template ready for downstream connections.
     {
         LOCK2(cs_main, m_mempool.cs);
 
@@ -52,7 +56,7 @@ void Sv2TemplateProvider::Start()
         UpdateTemplate(true, default_coinbase_tx_output_size);
     }
 
-    // Update the best known previous hash.
+    // Update the best known previous hash for downstream connections.
     UpdatePrevHash();
 
     // Start the dedicated Stratum V2 handler thread.
