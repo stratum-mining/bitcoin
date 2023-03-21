@@ -10,7 +10,7 @@
 
 void Sv2TemplateProvider::BindListenPort(uint16_t port)
 {
-    CService addr_bind = LookupNumeric("0.0.0.0", port);
+    const CService addr_bind = LookupNumeric("0.0.0.0", port);
 
     std::unique_ptr<Sock> sock = CreateSock(addr_bind);
     if (!sock) {
@@ -25,7 +25,7 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
     }
 
     if (bind(sock->Get(), (struct sockaddr*)&sockaddr, len) == SOCKET_ERROR) {
-        int nErr = WSAGetLastError();
+        const int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE) {
             throw std::runtime_error(strprintf("Unable to bind to %s on this computer. %s is probably already running.\n", addr_bind.ToString(), PACKAGE_NAME));
         }
@@ -33,7 +33,8 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
         throw std::runtime_error(strprintf("Unable to bind to %s on this computer (bind returned error %s )\n", addr_bind.ToString(), NetworkErrorString(nErr)));
     }
 
-    if ((listen(sock->Get(), 4096)) == SOCKET_ERROR) {
+    constexpr int max_pending_conns{4096};
+    if ((listen(sock->Get(), max_pending_conns)) == SOCKET_ERROR) {
         throw std::runtime_error("Sv2 Template Provider listening socket has an error");
     }
 
