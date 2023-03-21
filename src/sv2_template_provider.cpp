@@ -8,15 +8,6 @@
 #include <poll.h>
 #endif
 
-// TODO: I wonder if this is necessary?
-uint64_t TemplateId::Next()
-{
-    uint64_t next = m_id;
-    m_id += 1;
-
-    return next;
-}
-
 void Sv2TemplateProvider::BindListenPort(uint16_t port)
 {
     CService addr_bind = LookupNumeric("0.0.0.0", port);
@@ -52,12 +43,7 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
 
 void Sv2TemplateProvider::Start()
 {
-    // TODO: Is TemplateId really that neccessary?
-    // TODO: Is this copying of the the m_id really necessary?
-    TemplateId id;
-    id.m_id = 0;
-    m_template_id = id;
-
+    // TODO: I think m_template_id will always be 0???, should I explicitly reset it to 0 here?
     {
         LOCK2(cs_main, m_mempool.cs);
 
@@ -188,7 +174,7 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
 
     std::unique_ptr<node::CBlockTemplate> blocktemplate = node::BlockAssembler(m_chainman.ActiveChainstate(), &m_mempool, options).CreateNewBlock(CScript());
 
-    uint64_t id = m_template_id.Next();
+    uint64_t id = ++m_template_id;
     NewTemplate new_template{blocktemplate->block, id, future};
     m_blocks_cache.insert({new_template.m_template_id, std::move(blocktemplate)});
     m_new_template = new_template;

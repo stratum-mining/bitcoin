@@ -19,16 +19,6 @@ using u24_t = uint8_t[3];
 static constexpr uint8_t SETUP_CONN_TP_PROTOCOL{0x02};
 
 /**
- * The template id tracked by the template provider for NewTemplates.
- */
-class TemplateId
-{
-public:
-    uint64_t m_id;
-    uint64_t Next();
-};
-
-/**
  * Base class for all stratum v2 messages.
  */
 class Sv2Msg
@@ -615,9 +605,9 @@ private:
     NewTemplate m_new_template;
 
     /**
-     * The current best known new template id and is incremented on each new template.
+     * The current best known new template id. It is incremented on each new template.
      */
-    TemplateId m_template_id;
+    uint64_t m_template_id;
 
     /**
      * The current best known SetNewPrevHash that references the current best known
