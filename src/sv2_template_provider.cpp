@@ -24,7 +24,7 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
         throw std::runtime_error("Sv2 Template Provider failed to get socket address");
     }
 
-    if (bind(sock->Get(), (struct sockaddr*)&sockaddr, len) == SOCKET_ERROR) {
+    if (bind(sock->Get(), reinterpret_cast<struct sockaddr*>(&sockaddr),len) == SOCKET_ERROR) {
         const int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE) {
             throw std::runtime_error(strprintf("Unable to bind to %s on this computer. %s is probably already running.\n", addr_bind.ToString(), PACKAGE_NAME));
