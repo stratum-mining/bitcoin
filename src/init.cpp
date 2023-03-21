@@ -1776,15 +1776,10 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // TODO: Maybe move the default port to params?
     uint16_t sv2_port{static_cast<uint16_t>(gArgs.GetIntArg("-stratumv2", 8442))};
 
-
-    try {
-        node.sv2_template_provider->BindListenPort(sv2_port);
-        node.sv2_template_provider->Start();
-    } catch (const std::runtime_error& e) {
-        LogPrintf("%s: Failed to start the template provider due to error: %s\n", __func__, e.what());
-        Interrupt(node);
-        return false;
-    }
+    // Intentionally not handling the exceptions from BindListenPort and Start
+    // becuase the template provider must be able to function as a server.
+    node.sv2_template_provider->BindListenPort(sv2_port);
+    node.sv2_template_provider->Start();
 #endif
 
     // ********************************************************* Step 13: finished
