@@ -49,12 +49,8 @@ void Sv2TemplateProvider::Start(uint16_t port)
     BindListenPort(port);
 
     // Build and cache a block for the best new template ready for downstream connections.
-    {
-        LOCK2(cs_main, m_mempool.cs);
-
-        constexpr auto default_coinbase_tx_output_size {0};
-        UpdateTemplate(true, default_coinbase_tx_output_size);
-    }
+    constexpr auto default_coinbase_tx_output_size {0};
+    UpdateTemplate(true, default_coinbase_tx_output_size);
 
     // Update the best known previous hash for downstream connections.
     UpdatePrevHash();
@@ -170,9 +166,6 @@ void Sv2TemplateProvider::UpdatePrevHash()
 
 void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size)
 {
-    AssertLockHeld(cs_main);
-    AssertLockHeld(m_mempool.cs);
-
     node::BlockAssembler::Options options;
     options.nBlockMaxWeight = MAX_BLOCK_WEIGHT - out_data_size;
     options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);

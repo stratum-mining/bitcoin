@@ -617,7 +617,7 @@ private:
     /**
      * Builds a new block, caches it and builds the most recent and best NewTemplate from the new block.
      */
-    void UpdateTemplate(bool future, unsigned int coinbase_tx_outputs_size) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool.cs);
+    void UpdateTemplate(bool future, unsigned int coinbase_tx_outputs_size);
 
     /**
      * Builds a new SetNewPrevHash referencing the best NewTemplate.
