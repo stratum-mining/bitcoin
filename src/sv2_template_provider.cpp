@@ -68,12 +68,15 @@ void Sv2TemplateProvider::ThreadSv2Handler()
         }
 
         {
+            // Required locking order to wait on lock g_best_block_mutex.
             LOCK2(cs_main, m_mempool.cs);
-            WAIT_LOCK(g_best_block_mutex, lock);
+
             {
+                WAIT_LOCK(g_best_block_mutex, lock);
                 auto checktime = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
                 if (g_best_block_cv.wait_until(lock, checktime) == std::cv_status::timeout) {
                     if (m_best_prev_hash.m_prev_hash != g_best_block) {
+                        // TODO: Maybe use default_coinbase_tx_output_size?
                         UpdateTemplate(true, 0);
                         UpdatePrevHash();
                         OnNewBlock();
@@ -85,6 +88,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
         std::set<SOCKET> recv_set, err_set;
         GenerateSocketEvents(recv_set, err_set);
 
+        // TODO: Use Sock methods
         if (m_listening_socket->Get() != INVALID_SOCKET && recv_set.count(m_listening_socket->Get()) > 0) {
             struct sockaddr_storage sockaddr;
             socklen_t sockaddr_len = sizeof(sockaddr);
