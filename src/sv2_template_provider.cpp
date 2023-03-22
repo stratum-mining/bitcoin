@@ -20,11 +20,11 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
     struct sockaddr_storage sockaddr;
     socklen_t len = sizeof(sockaddr);
 
-    if (!addr_bind.GetSockAddr((struct sockaddr*)&sockaddr, &len)) {
+    if (!addr_bind.GetSockAddr(reinterpret_cast<struct sockaddr*>(&sockaddr), &len)) {
         throw std::runtime_error("Sv2 Template Provider failed to get socket address");
     }
 
-    if (bind(sock->Get(), reinterpret_cast<struct sockaddr*>(&sockaddr),len) == SOCKET_ERROR) {
+    if (sock->Bind(reinterpret_cast<struct sockaddr*>(&sockaddr), len) == SOCKET_ERROR) {
         const int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE) {
             throw std::runtime_error(strprintf("Unable to bind to %s on this computer. %s is probably already running.\n", addr_bind.ToString(), PACKAGE_NAME));
@@ -34,7 +34,7 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
     }
 
     constexpr int max_pending_conns{4096};
-    if ((listen(sock->Get(), max_pending_conns)) == SOCKET_ERROR) {
+    if (sock->Listen(max_pending_conns) == SOCKET_ERROR) {
         throw std::runtime_error("Sv2 Template Provider listening socket has an error");
     }
 
