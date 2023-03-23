@@ -93,6 +93,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
             socklen_t sockaddr_len = sizeof(sockaddr);
 
             auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
+            // TODO: Maybe check if (sock) and if not just ignore??? Does this have any consequence for the actualy tcp connection on the socket?
 
             auto client = std::make_unique<Sv2Client>(std::move(sock));
             m_sv2_clients.push_back(std::move(client));
@@ -115,8 +116,12 @@ void Sv2TemplateProvider::ThreadSv2Handler()
             }
 
             if (recv_flag) {
+
+
+                // TODO: Is there a recv in Sock?
+
                 uint8_t bytes_recv_buf[0x10000];
-                int num_bytes_recv = recv(client->m_sock->Get(), (char*)bytes_recv_buf, sizeof(bytes_recv_buf), MSG_DONTWAIT);
+                auto num_bytes_recv = client->m_sock->Recv(bytes_recv_buf, sizeof(bytes_recv_buf), MSG_DONTWAIT);
 
                 if (num_bytes_recv <= 0) {
                     client->m_disconnect_flag = true;
