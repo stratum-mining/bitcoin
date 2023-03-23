@@ -108,28 +108,24 @@ void Sv2TemplateProvider::ThreadSv2Handler()
 
 
         for (auto& client : m_sv2_clients) {
-            bool recv_flag = recv_set.count(client->m_sock->Get()) > 0;
-            bool err_flag = err_set.count(client->m_sock->Get()) > 0;
+            const bool has_received_data = recv_set.count(client->m_sock->Get()) > 0;
+            const bool has_error_occurred = err_set.count(client->m_sock->Get()) > 0;
 
-            if (err_flag) {
+            if (has_error_occurred) {
                 client->m_disconnect_flag = true;
             }
 
-            if (recv_flag) {
+            if (has_received_data) {
+                uint8_t bytes_received_buf[0x10000];
+                auto num_bytes_received = client->m_sock->Recv(bytes_received_buf, sizeof(bytes_received_buf), MSG_DONTWAIT);
 
-
-                // TODO: Is there a recv in Sock?
-
-                uint8_t bytes_recv_buf[0x10000];
-                auto num_bytes_recv = client->m_sock->Recv(bytes_recv_buf, sizeof(bytes_recv_buf), MSG_DONTWAIT);
-
-                if (num_bytes_recv <= 0) {
+                if (num_bytes_received <= 0) {
                     client->m_disconnect_flag = true;
                     continue;
                 }
 
                 CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                ss << Span<uint8_t>(&bytes_recv_buf[0], num_bytes_recv);
+                ss << Span<uint8_t>(bytes_received_buf, num_bytes_received);
 
                 Sv2Header sv2_header;
                 try {
