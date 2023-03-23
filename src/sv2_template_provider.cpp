@@ -94,19 +94,19 @@ void Sv2TemplateProvider::ThreadSv2Handler()
 
             auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
 
-            Sv2Client* client = new Sv2Client(std::move(sock));
-            m_sv2_clients.push_back(client);
+            auto client = std::make_unique<Sv2Client>(std::move(sock));
+            m_sv2_clients.push_back(std::move(client));
         }
 
-        std::vector<Sv2Client*> clients_copy = m_sv2_clients;
-        for (Sv2Client* client : clients_copy) {
-            if (client->m_disconnect_flag) {
-                m_sv2_clients.erase(remove(m_sv2_clients.begin(), m_sv2_clients.end(), client), m_sv2_clients.end());
-                delete client;
-            }
-        };
+        // Remove clients that are flagged for disconnection.
+        m_sv2_clients.erase(
+                std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const std::unique_ptr<Sv2Client> &client) {
+                    return client->m_disconnect_flag;
 
-        for (Sv2Client* client : m_sv2_clients) {
+        }), m_sv2_clients.end());
+
+
+        for (auto& client : m_sv2_clients) {
             bool recv_flag = recv_set.count(client->m_sock->Get()) > 0;
             bool err_flag = err_set.count(client->m_sock->Get()) > 0;
 
@@ -135,7 +135,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                     continue;
                 }
 
-                ProcessSv2Message(sv2_header, ss, client);
+                ProcessSv2Message(sv2_header, ss, client.get());
             }
         }
     }
@@ -182,7 +182,7 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
 
 void Sv2TemplateProvider::OnNewBlock()
 {
-    for (Sv2Client* client : m_sv2_clients) {
+    for (const auto& client : m_sv2_clients) {
         if (!client->m_setup_connection_confirmed) {
             continue;
         }
@@ -195,7 +195,6 @@ void Sv2TemplateProvider::OnNewBlock()
             LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
 
-        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
         ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         // TODO: Maybe I need to static_cast?
         if (sent != (ssize_t)ss.size()) {
@@ -355,7 +354,7 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::
 
     recv_select_set.insert(m_listening_socket->Get());
 
-    for (const Sv2Client* client : m_sv2_clients) {
+    for (const auto& client : m_sv2_clients) {
         if (!client->m_disconnect_flag) {
             recv_select_set.insert(client->m_sock->Get());
             error_select_set.insert(client->m_sock->Get());
@@ -393,7 +392,7 @@ void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::
 
     recv_select_set.insert(m_listening_socket->Get());
 
-    for (const Sv2Client* client : m_sv2_clients) {
+    for (const auto& client : m_sv2_clients) {
         if (!client->m_disconnect_flag) {
             recv_select_set.insert(client->m_sock->Get());
             err_select_set.insert(client->m_sock->Get());

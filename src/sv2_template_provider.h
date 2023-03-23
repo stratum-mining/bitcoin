@@ -566,7 +566,7 @@ private:
     /**
      * A list of all connected stratum v2 clients.
      */
-    std::vector<Sv2Client*> m_sv2_clients;
+    std::vector<std::unique_ptr<Sv2Client>> m_sv2_clients;
 
     /**
      * Signal for handling interrupts and stopping the template provider event loop.
