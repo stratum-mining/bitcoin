@@ -68,7 +68,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
         }
 
         {
-            // Required locking order to wait on lock g_best_block_mutex.
+            // Required locking order for g_best_block_mutex.
             LOCK2(cs_main, m_mempool.cs);
 
             {
@@ -88,13 +88,11 @@ void Sv2TemplateProvider::ThreadSv2Handler()
         std::set<SOCKET> recv_set, err_set;
         GenerateSocketEvents(recv_set, err_set);
 
-        // TODO: Use Sock methods
         if (m_listening_socket->Get() != INVALID_SOCKET && recv_set.count(m_listening_socket->Get()) > 0) {
             struct sockaddr_storage sockaddr;
             socklen_t sockaddr_len = sizeof(sockaddr);
 
-            SOCKET hSocket = accept(m_listening_socket->Get(), (struct sockaddr*)&sockaddr, &sockaddr_len);
-            auto sock = std::make_unique<Sock>(hSocket);
+            auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
 
             Sv2Client* client = new Sv2Client(std::move(sock));
             m_sv2_clients.push_back(client);
