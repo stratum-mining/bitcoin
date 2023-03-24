@@ -81,7 +81,6 @@ void Sv2TemplateProvider::ThreadSv2Handler()
             }
         }
 
-
         // Remove clients that are flagged for disconnection.
         m_sv2_clients.erase(
                 std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const Sv2Client &client) {
@@ -104,7 +103,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
 
             auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
             // TODO: Maybe check if (sock) and if not just ignore??? Does this have any consequence for the actualy tcp connection on the socket?
-            m_sv2_clients.push_back(Sv2Client{std::move(sock)});
+            m_sv2_clients.emplace_back(Sv2Client{std::move(sock)});
         }
 
         for (auto& client : m_sv2_clients) {
@@ -205,8 +204,7 @@ void Sv2TemplateProvider::OnNewBlock()
         }
 
         ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        // TODO: Maybe I need to static_cast?
-        if (sent != (ssize_t)ss.size()) {
+        if (sent != static_cast<ssize_t>(ss.size())) {
             LogPrintf("Failed to send\n");
         }
         ss.clear();
@@ -218,7 +216,7 @@ void Sv2TemplateProvider::OnNewBlock()
         }
 
         sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != (ssize_t)ss.size()) {
+        if (sent != static_cast<ssize_t>(ss.size())) {
             LogPrintf("Failed to send\n");
         }
     }
@@ -250,7 +248,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
             ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-            if (sent != (ssize_t)ss.size()) {
+            if (sent != static_cast<ssize_t>(ss.size())) {
                 LogPrintf("Failed to send\n");
             }
             ss.clear();
@@ -280,7 +278,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
 
         ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != (ssize_t)ss.size()) {
+        if (sent != static_cast<ssize_t>(ss.size())) {
             LogPrintf("Failed to send\n");
         }
         ss.clear();
@@ -295,7 +293,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
 
         sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != (ssize_t)ss.size()) {
+        if (sent != static_cast<ssize_t>(ss.size())) {
             LogPrintf("Failed to send\n");
         }
         ss.clear();
