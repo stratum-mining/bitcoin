@@ -506,7 +506,7 @@ public:
     /**
      * Receiving and sending socket for the connected client
      */
-    std::unique_ptr<Sock> m_sock;
+    std::shared_ptr<Sock> m_sock;
 
     /**
      * Whether the client has confirmed the connection with a successful SetupConnection.
@@ -523,11 +523,10 @@ public:
      */
     bool m_coinbase_output_data_size_recv;
 
+    // TODO: Add comment.
     unsigned int m_coinbase_tx_outputs_size;
 
-    explicit Sv2Client(std::unique_ptr<Sock> sock) : m_sock{std::move(sock)},
-                                                     m_setup_connection_confirmed{false}, m_disconnect_flag{false},
-                                                     m_coinbase_output_data_size_recv(false), m_coinbase_tx_outputs_size(0){};
+    explicit Sv2Client(std::shared_ptr<Sock> sock) : m_sock{sock} {};
 };
 
 /**
@@ -556,7 +555,7 @@ private:
     /**
      * The main listening socket for new stratum v2 connections.
      */
-    std::unique_ptr<Sock> m_listening_socket;
+    std::shared_ptr<Sock> m_listening_socket;
 
     /**
      * The main thread for the template provider.
@@ -566,7 +565,7 @@ private:
     /**
      * A list of all connected stratum v2 clients.
      */
-    std::vector<std::unique_ptr<Sv2Client>> m_sv2_clients;
+    std::vector<Sv2Client> m_sv2_clients;
 
     /**
      * Signal for handling interrupts and stopping the template provider event loop.
@@ -631,15 +630,14 @@ private:
     void OnNewBlock();
 
     /**
-     * Generate recv and error events on each clients socket connection.
-     */
-    void GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& error_set);
-
-    /**
      * Main handler for all received stratum v2 messages.
      */
-    void ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client* client);
-};
+    void ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client& client);
 
+    /**
+     * Generates the socket events for each Sv2Client socket and the main listening socket.
+     */
+    Sock::EventsPerSock GenerateWaitSockets() const;
+};
 
 #endif // BITCOIN_SV2_TEMPLATE_PROVIDER_H
