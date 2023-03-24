@@ -4,10 +4,6 @@
 #include <util/thread.h>
 #include <validation.h>
 
-#ifdef USE_POLL
-#include <poll.h>
-#endif
-
 void Sv2TemplateProvider::BindListenPort(uint16_t port)
 {
     const CService addr_bind = LookupNumeric("0.0.0.0", port);
@@ -85,42 +81,52 @@ void Sv2TemplateProvider::ThreadSv2Handler()
             }
         }
 
-        std::set<SOCKET> recv_set, err_set;
-        GenerateSocketEvents(recv_set, err_set);
 
-        if (m_listening_socket->Get() != INVALID_SOCKET && recv_set.count(m_listening_socket->Get()) > 0) {
+        // Remove clients that are flagged for disconnection.
+        m_sv2_clients.erase(
+                std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const Sv2Client &client) {
+                    return client.m_disconnect_flag;
+
+        }), m_sv2_clients.end());
+
+        // Poll/Select the sockets that need handling.
+        Sock::EventsPerSock events_per_sock = GenerateWaitSockets();
+
+        constexpr auto timeout = std::chrono::milliseconds(50);
+        // TODO: This has a bool that should be handled?
+        // MAYBE If its false, continue?
+        events_per_sock.begin()->first->WaitMany(timeout, events_per_sock);
+
+        const auto listening_sock = events_per_sock.find(m_listening_socket);
+        if (listening_sock != events_per_sock.end() && listening_sock->second.occurred & Sock::RECV) {
             struct sockaddr_storage sockaddr;
             socklen_t sockaddr_len = sizeof(sockaddr);
 
             auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
             // TODO: Maybe check if (sock) and if not just ignore??? Does this have any consequence for the actualy tcp connection on the socket?
-
-            auto client = std::make_unique<Sv2Client>(std::move(sock));
-            m_sv2_clients.push_back(std::move(client));
+            m_sv2_clients.push_back(Sv2Client{std::move(sock)});
         }
 
-        // Remove clients that are flagged for disconnection.
-        m_sv2_clients.erase(
-                std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const std::unique_ptr<Sv2Client> &client) {
-                    return client->m_disconnect_flag;
-
-        }), m_sv2_clients.end());
-
-
         for (auto& client : m_sv2_clients) {
-            const bool has_received_data = recv_set.count(client->m_sock->Get()) > 0;
-            const bool has_error_occurred = err_set.count(client->m_sock->Get()) > 0;
+            bool has_received_data = false;
+            bool has_error_occurred = false;
+
+            const auto it = events_per_sock.find(client.m_sock);
+            if (it != events_per_sock.end()) {
+                has_received_data = it->second.occurred & Sock::RECV;
+                has_error_occurred = it->second.occurred & Sock::ERR;
+            }
 
             if (has_error_occurred) {
-                client->m_disconnect_flag = true;
+                client.m_disconnect_flag = true;
             }
 
             if (has_received_data) {
                 uint8_t bytes_received_buf[0x10000];
-                auto num_bytes_received = client->m_sock->Recv(bytes_received_buf, sizeof(bytes_received_buf), MSG_DONTWAIT);
+                auto num_bytes_received = client.m_sock->Recv(bytes_received_buf, sizeof(bytes_received_buf), MSG_DONTWAIT);
 
                 if (num_bytes_received <= 0) {
-                    client->m_disconnect_flag = true;
+                    client.m_disconnect_flag = true;
                     continue;
                 }
 
@@ -132,11 +138,11 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                     ss >> sv2_header;
                 } catch (const std::exception& e) {
                     LogPrintf("Received invalid header: %s\n", e.what());
-                    client->m_disconnect_flag = true;
+                    client.m_disconnect_flag = true;
                     continue;
                 }
 
-                ProcessSv2Message(sv2_header, ss, client.get());
+                ProcessSv2Message(sv2_header, ss, client);
             }
         }
     }
@@ -184,7 +190,7 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
 void Sv2TemplateProvider::OnNewBlock()
 {
     for (const auto& client : m_sv2_clients) {
-        if (!client->m_setup_connection_confirmed) {
+        if (!client.m_setup_connection_confirmed) {
             continue;
         }
 
@@ -196,7 +202,7 @@ void Sv2TemplateProvider::OnNewBlock()
             LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
 
-        ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         // TODO: Maybe I need to static_cast?
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
@@ -209,7 +215,7 @@ void Sv2TemplateProvider::OnNewBlock()
             LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
         }
 
-        sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
@@ -217,13 +223,11 @@ void Sv2TemplateProvider::OnNewBlock()
     }
 }
 
-void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client* client)
+void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client& client)
 {
-    if (!client) return;
-
     switch (sv2_header.m_msg_type) {
     case SETUP_CONNECTION: {
-        if (client->m_setup_connection_confirmed) {
+        if (client.m_setup_connection_confirmed) {
             return;
         }
 
@@ -232,18 +236,18 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             ss >> setup_conn;
         } catch (const std::exception& e) {
             LogPrintf("Received invalid SetupConnection message: %s\n", e.what());
-            client->m_disconnect_flag = true;
+            client.m_disconnect_flag = true;
             return;
         }
         ss.clear();
 
         if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
-            client->m_setup_connection_confirmed = true;
+            client.m_setup_connection_confirmed = true;
 
             SetupConnectionSuccess setup_success{2, 0};
             ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
-            ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != (ssize_t)ss.size()) {
                 LogPrintf("Failed to send\n");
             }
@@ -253,13 +257,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         break;
     }
     case COINBASE_OUTPUT_DATA_SIZE: {
-        if (!client->m_setup_connection_confirmed) {
+        if (!client.m_setup_connection_confirmed) {
             return;
         }
         CoinbaseOutputDataSize coinbase_out_data_size;
         try {
             ss >> coinbase_out_data_size;
-            client->m_coinbase_output_data_size_recv = true;
+            client.m_coinbase_output_data_size_recv = true;
         } catch (const std::exception& e) {
             LogPrintf("Received invalid CoinbaseOutputDataSize message: %s\n", e.what());
             return;
@@ -273,17 +277,17 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
 
         /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-        ssize_t sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
         ss.clear();
 
 
-        client->m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
+        client.m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
         {
             LOCK2(cs_main, m_mempool.cs);
-            UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+            UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
         }
 
         try {
@@ -293,7 +297,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
 
         /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-        sent = client->m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
@@ -333,7 +337,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
                 {
                     LOCK2(cs_main, m_mempool.cs);
-                    UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+                    UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
                     UpdatePrevHash();
                 }
 
@@ -348,91 +352,17 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
     }
 }
 
-#ifdef USE_POLL
-void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& err_set)
+Sock::EventsPerSock Sv2TemplateProvider::GenerateWaitSockets() const
 {
-    std::set<SOCKET> recv_select_set, error_select_set;
+    Sock::EventsPerSock events_per_sock;
+    events_per_sock.emplace(m_listening_socket, Sock::Events(Sock::RECV));
 
-    recv_select_set.insert(m_listening_socket->Get());
-
-    for (const auto& client : m_sv2_clients) {
-        if (!client->m_disconnect_flag) {
-            recv_select_set.insert(client->m_sock->Get());
-            error_select_set.insert(client->m_sock->Get());
+    for (const auto& sv2_client : m_sv2_clients) {
+        // TODO: Also check if each nodes m_sock is some?
+        if (!sv2_client.m_disconnect_flag) {
+            events_per_sock.emplace(sv2_client.m_sock, Sock::Events{Sock::RECV | Sock::ERR});
         }
     }
 
-    std::unordered_map<SOCKET, struct pollfd> pollfds;
-    for (const SOCKET socket_id : recv_select_set) {
-        pollfds[socket_id].fd = socket_id;
-        pollfds[socket_id].events |= POLLIN;
-    }
-
-    for (const SOCKET socket_id : error_select_set) {
-        pollfds[socket_id].fd = socket_id;
-        pollfds[socket_id].events |= POLLERR | POLLHUP;
-    }
-
-    std::vector<struct pollfd> vpollfds;
-    vpollfds.reserve(pollfds.size());
-    for (auto it : pollfds) {
-        vpollfds.push_back(std::move(it.second));
-    }
-
-    if (poll(vpollfds.data(), vpollfds.size(), 500) < 0) return;
-
-    for (struct pollfd pollfd_entry : vpollfds) {
-        if (pollfd_entry.revents & POLLIN) recv_set.insert(pollfd_entry.fd);
-        if (pollfd_entry.revents & (POLLERR | POLLHUP)) err_set.insert(pollfd_entry.fd);
-    }
+    return events_per_sock;
 }
-#else
-void Sv2TemplateProvider::GenerateSocketEvents(std::set<SOCKET>& recv_set, std::set<SOCKET>& err_set)
-{
-    std::set<SOCKET> recv_select_set, err_select_set;
-
-    recv_select_set.insert(m_listening_socket->Get());
-
-    for (const auto& client : m_sv2_clients) {
-        if (!client->m_disconnect_flag) {
-            recv_select_set.insert(client->m_sock->Get());
-            err_select_set.insert(client->m_sock->Get());
-        }
-    }
-
-    fd_set fd_set_recv, fd_set_error;
-    FD_ZERO(&fd_set_recv);
-    FD_ZERO(&fd_set_error);
-
-    // TODO: Try using SOCKET to be win32 compatible.
-    SOCKET socket_max = 0;
-
-    for (const auto socket : recv_select_set) {
-        FD_SET(socket, &fd_set_recv);
-        socket_max = std::max(socket_max, socket);
-    }
-
-    for (const auto socket : err_select_set) {
-        FD_SET(socket, &fd_set_error);
-        socket_max = std::max(socket_max, socket);
-    }
-
-    struct timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 50 * 1000; // frequency to call select
-
-    select(socket_max + 1, &fd_set_recv, nullptr, &fd_set_error, &timeout);
-
-    for (const auto socket : recv_select_set) {
-        if (FD_ISSET(socket, &fd_set_recv)) {
-            recv_set.insert(socket);
-        }
-    }
-
-    for (const auto socket : err_select_set) {
-        if (FD_ISSET(socket, &fd_set_error)) {
-            err_set.insert(socket);
-        }
-    }
-}
-#endif
