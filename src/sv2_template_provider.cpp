@@ -283,12 +283,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
         ss.clear();
 
-
         client.m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
-        {
-            LOCK2(cs_main, m_mempool.cs);
-            UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
-        }
+        UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
 
         try {
             ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
@@ -335,11 +331,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             if (res) {
                 m_blocks_cache.erase(submit_solution.m_template_id);
 
-                {
-                    LOCK2(cs_main, m_mempool.cs);
-                    UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
-                    UpdatePrevHash();
-                }
+                UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
+                UpdatePrevHash();
 
                 OnNewBlock();
             }
