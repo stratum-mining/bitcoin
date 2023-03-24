@@ -130,6 +130,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                     continue;
                 }
 
+                // TODO: This is required because it has the rest of the message bytes after reading the header.
                 CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
                 ss << Span<uint8_t>(bytes_received_buf, num_bytes_received);
 
@@ -142,6 +143,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                     continue;
                 }
 
+                // TODO: Maybe give it a better name than ss
                 ProcessSv2Message(sv2_header, ss, client);
             }
         }
@@ -202,7 +204,7 @@ void Sv2TemplateProvider::OnNewBlock()
             LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
 
-        ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         // TODO: Maybe I need to static_cast?
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
@@ -215,11 +217,10 @@ void Sv2TemplateProvider::OnNewBlock()
             LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
         }
 
-        sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
-        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
     }
 }
 
@@ -244,14 +245,14 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
             client.m_setup_connection_confirmed = true;
 
+            // TODO: Create a CDataStream to write the SetupConnectionSuccess.
             SetupConnectionSuccess setup_success{2, 0};
             ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
-            ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != (ssize_t)ss.size()) {
                 LogPrintf("Failed to send\n");
             }
-            /* write(client->m_sock->Get(), ss.data(), ss.size()); */
             ss.clear();
         }
         break;
@@ -260,6 +261,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         if (!client.m_setup_connection_confirmed) {
             return;
         }
+
         CoinbaseOutputDataSize coinbase_out_data_size;
         try {
             ss >> coinbase_out_data_size;
@@ -271,13 +273,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         ss.clear();
 
         try {
+        // TODO: Create a CDataStream to write the SetupConnectionSuccess.
             ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
         } catch (const std::exception& e) {
             LogPrintf("Error writing prev_hash: %e\n", e.what());
         }
 
-        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-        ssize_t sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
@@ -292,8 +294,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             LogPrintf("Error writing copy_new_template: %e\n", e.what());
         }
 
-        /* write(client->m_sock->Get(), ss.data(), ss.size()); */
-        sent = client.m_sock->Send(reinterpret_cast<const char*>(ss.data()), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != (ssize_t)ss.size()) {
             LogPrintf("Failed to send\n");
         }
