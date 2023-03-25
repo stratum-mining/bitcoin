@@ -205,7 +205,7 @@ void Sv2TemplateProvider::OnNewBlock()
 
         ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != static_cast<ssize_t>(ss.size())) {
-            LogPrintf("Failed to send\n");
+            LogPrintf("Failed to send NewTemplate message\n");
         }
         ss.clear();
 
@@ -217,7 +217,7 @@ void Sv2TemplateProvider::OnNewBlock()
 
         sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != static_cast<ssize_t>(ss.size())) {
-            LogPrintf("Failed to send\n");
+            LogPrintf("Failed to send SetNewPrevHash\n");
         }
     }
 }
@@ -249,7 +249,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
             ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
-                LogPrintf("Failed to send\n");
+                LogPrintf("Failed to send SetupSuccessMessage\n");
             }
         }
         break;
@@ -277,7 +277,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
         ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
-            LogPrintf("Failed to send\n");
+            LogPrintf("Failed to send NewPrevHash message\n");
         }
 
         client.m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
@@ -291,8 +291,8 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         }
 
         sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(ss.size())) {
-            LogPrintf("Failed to send\n");
+        if (sent != static_cast<ssize_t>(new_template_ss.size())) {
+            LogPrintf("Failed to send NewTemplate Message,\n");
         }
 
         break;
