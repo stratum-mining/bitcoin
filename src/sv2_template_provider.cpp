@@ -238,20 +238,19 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             client.m_disconnect_flag = true;
             return;
         }
-        ss.clear();
 
         if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
             client.m_setup_connection_confirmed = true;
 
-            // TODO: Create a CDataStream to write the SetupConnectionSuccess.
+            CDataStream setup_success_ss(SER_NETWORK, PROTOCOL_VERSION);
+            // TODO: Remove magic numbers.
             SetupConnectionSuccess setup_success{2, 0};
-            ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
+            setup_success_ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
 
-            ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-            if (sent != static_cast<ssize_t>(ss.size())) {
+            ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
                 LogPrintf("Failed to send\n");
             }
-            ss.clear();
         }
         break;
     }
@@ -268,35 +267,33 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             LogPrintf("Received invalid CoinbaseOutputDataSize message: %s\n", e.what());
             return;
         }
-        ss.clear();
 
+        CDataStream new_prev_hash_ss(SER_NETWORK, PROTOCOL_VERSION);
         try {
-        // TODO: Create a CDataStream to write the SetupConnectionSuccess.
-            ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
+            new_prev_hash_ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
         } catch (const std::exception& e) {
             LogPrintf("Error writing prev_hash: %e\n", e.what());
         }
 
-        ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(ss.size())) {
+        ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
             LogPrintf("Failed to send\n");
         }
-        ss.clear();
 
         client.m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
         UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
 
+        CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
         try {
-            ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
+            new_template_ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
         } catch (const std::exception& e) {
             LogPrintf("Error writing copy_new_template: %e\n", e.what());
         }
 
-        sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+        sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
         if (sent != static_cast<ssize_t>(ss.size())) {
             LogPrintf("Failed to send\n");
         }
-        ss.clear();
 
         break;
     }
@@ -308,13 +305,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             LogPrintf("Received invalid SubmitSolution message: %e\n", e.what());
             return;
         }
-        ss.clear();
 
         auto cached_block = m_blocks_cache.find(submit_solution.m_template_id);
         if (cached_block != m_blocks_cache.end()) {
             auto block_template = *cached_block->second;
             CBlock& block = block_template.block;
 
+            // TODO: Can't I just move this in one go?
             auto coinbase_tx = CTransaction(std::move(submit_solution.m_coinbase_tx));
             block.vtx[0] = std::make_shared<CTransaction>(std::move(coinbase_tx));
 
