@@ -243,7 +243,7 @@ public:
      */
     std::vector<uint256> m_merkle_path;
 
-    NewTemplate(){};
+    NewTemplate() = default;
 
     explicit NewTemplate(const CBlock& block, uint64_t template_id, bool future_template)
         : m_template_id{template_id}, m_future_template{future_template}
@@ -339,7 +339,7 @@ public:
      */
     uint256 m_target;
 
-    SetNewPrevHash(){};
+    SetNewPrevHash() = default;
 
     explicit SetNewPrevHash(const CBlock& block, uint64_t template_id)
     {
@@ -401,7 +401,7 @@ public:
      */
     CMutableTransaction m_coinbase_tx;
 
-    SubmitSolution(){};
+    SubmitSolution() = default;
 
     template <typename Stream>
     void Unserialize(Stream& s)
@@ -433,7 +433,7 @@ public:
      */
     uint32_t m_msg_len;
 
-    Sv2Header(){};
+    Sv2Header() = default;
     explicit Sv2Header(Sv2MsgType msg_type, uint32_t msg_len) : m_msg_type{msg_type}, m_msg_len{msg_len} {};
 
     template <typename Stream>
