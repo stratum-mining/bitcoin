@@ -243,8 +243,12 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             client.m_setup_connection_confirmed = true;
 
             CDataStream setup_success_ss(SER_NETWORK, PROTOCOL_VERSION);
-            // TODO: Remove magic numbers.
-            SetupConnectionSuccess setup_success{2, 0};
+
+            // TODO: Move these to .h file scope?
+            constexpr auto default_used_version{2};
+            constexpr auto default_optional_feature_flags{0};
+
+            SetupConnectionSuccess setup_success{default_used_version, default_optional_feature_flags};
             setup_success_ss << Sv2NetMsg{setup_success};
 
             ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
@@ -259,9 +263,9 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             return;
         }
 
-        CoinbaseOutputDataSize coinbase_out_data_size;
+        CoinbaseOutputDataSize coinbase_output_data_size;
         try {
-            ss >> coinbase_out_data_size;
+            ss >> coinbase_output_data_size;
             client.m_coinbase_output_data_size_recv = true;
         } catch (const std::exception& e) {
             LogPrintf("Received invalid CoinbaseOutputDataSize message: %s\n", e.what());
@@ -275,12 +279,16 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             LogPrintf("Error writing prev_hash: %e\n", e.what());
         }
 
-        ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
-            LogPrintf("Failed to send NewPrevHash message\n");
+        try {
+            ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
+                LogPrintf("Failed to send NewPrevHash message\n");
+            }
+        } catch (const std::exception& e) {
+            LogPrintf("Error when sending NewPrevHash message: %e\n", e.what());
         }
 
-        client.m_coinbase_tx_outputs_size = coinbase_out_data_size.m_coinbase_output_max_additional_size;
+        client.m_coinbase_tx_outputs_size = coinbase_output_data_size.m_coinbase_output_max_additional_size;
         UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
 
         CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -290,9 +298,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             LogPrintf("Error writing copy_new_template: %e\n", e.what());
         }
 
-        sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(new_template_ss.size())) {
-            LogPrintf("Failed to send NewTemplate Message,\n");
+        try {
+            ssize_t sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(new_template_ss.size())) {
+                LogPrintf("Failed to send NewTemplate Message,\n");
+            }
+        } catch (const std::exception& e) {
+            LogPrintf("Error when sending NewTemplate message: %e\n", e.what());
         }
 
         break;
