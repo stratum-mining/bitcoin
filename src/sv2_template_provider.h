@@ -622,23 +622,6 @@ public:
  */
 class Sv2TemplateProvider
 {
-public:
-    explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : m_chainman{chainman}, m_mempool{mempool} {};
-    /**
-     * Starts the template provider server and thread.
-     */
-    void Start(uint16_t port);
-
-    /**
-     * Tear down of the template provider thread and any other necessary tear down.
-     */
-    void StopThreads();
-
-    /**
-     * Triggered on interrupt signals to stop the main event loop in ThreadSv2Handler().
-     */
-    void Interrupt();
-
 private:
     /**
      * The main listening socket for new stratum v2 connections.
@@ -726,6 +709,22 @@ private:
      * Generates the socket events for each Sv2Client socket and the main listening socket.
      */
     Sock::EventsPerSock GenerateWaitSockets() const;
+public:
+    explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : m_chainman{chainman}, m_mempool{mempool} {};
+    /**
+     * Starts the template provider server and thread.
+     */
+    void Start(uint16_t port);
+
+    /**
+     * Tear down of the template provider thread and any other necessary tear down.
+     */
+    void StopThreads();
+
+    /**
+     * Triggered on interrupt signals to stop the main event loop in ThreadSv2Handler().
+     */
+    void Interrupt();
 };
 
 #endif // BITCOIN_SV2_TEMPLATE_PROVIDER_H
