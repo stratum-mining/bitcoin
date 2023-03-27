@@ -9,7 +9,7 @@
 FUZZ_TARGET(sv2_msgs)
 {
     CDataStream ss_setup_conn(buffer, SER_NETWORK, INIT_PROTO_VERSION);
-    SetupConnection setup_conn;
+    SetupConnectionMsg setup_conn;
 
     try {
         ss_setup_conn >> setup_conn;
@@ -18,7 +18,7 @@ FUZZ_TARGET(sv2_msgs)
     }
 
     CDataStream ss_submit_solution(buffer, SER_NETWORK, INIT_PROTO_VERSION);
-    SubmitSolution submit_solution;
+    SubmitSolutionMsg submit_solution;
 
     try {
         ss_submit_solution >> submit_solution;
@@ -27,7 +27,7 @@ FUZZ_TARGET(sv2_msgs)
     }
 
     CDataStream ss_sv2_header(buffer, SER_NETWORK, INIT_PROTO_VERSION);
-    Sv2Header sv2_header;
+    Sv2NetHeader sv2_header;
 
     try {
         ss_sv2_header >> sv2_header;

@@ -25,7 +25,7 @@ BOOST_AUTO_TEST_CASE(a)
     CDataStream ss(expected, SER_NETWORK, PROTOCOL_VERSION);
     BOOST_CHECK_EQUAL(ss.size(), 82);
 
-    SetupConnection setup_conn;
+    SetupConnectionMsg setup_conn;
     ss >> setup_conn;
 
     BOOST_CHECK_EQUAL(setup_conn.m_protocol, 3);
@@ -40,7 +40,7 @@ BOOST_AUTO_TEST_CASE(a)
     BOOST_CHECK_EQUAL(setup_conn.m_device_id, "some-device-uuid");
 }
 
-BOOST_AUTO_TEST_CASE(Sv2Header_SetupConnection_test)
+BOOST_AUTO_TEST_CASE(Sv2NetHeader_SetupConnection_test)
 {
     uint8_t input[]{
         0x00, 0x00,       // extension type
@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE(Sv2Header_SetupConnection_test)
     };
 
     CDataStream ss(input, SER_NETWORK, PROTOCOL_VERSION);
-    Sv2Header sv2_header;
+    Sv2NetHeader sv2_header;
     ss >> sv2_header;
 
     BOOST_CHECK_EQUAL(sv2_header.m_msg_type, Sv2MsgType::SETUP_CONNECTION);
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(SetupConnectionSuccess_test)
         0x03, 0x00, 0x00, 0x00, // flags
     };
 
-    SetupConnectionSuccess setup_conn_success{2, 3};
+    SetupConnectionSuccessMsg setup_conn_success{2, 3};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << setup_conn_success;
@@ -79,7 +79,7 @@ BOOST_AUTO_TEST_CASE(SetupConnectionSuccess_test)
     BOOST_CHECK(std::equal(bytes.begin(), bytes.end(), expected));
 }
 
-BOOST_AUTO_TEST_CASE(Sv2Header_SetupConnectionSuccess_test)
+BOOST_AUTO_TEST_CASE(Sv2NetHeader_SetupConnectionSuccess_test)
 {
     uint8_t expected[]{
         0x00, 0x00,             // extension type
@@ -89,8 +89,8 @@ BOOST_AUTO_TEST_CASE(Sv2Header_SetupConnectionSuccess_test)
         0x03, 0x00, 0x00, 0x00, // flags
     };
 
-    SetupConnectionSuccess setup_conn_success{2, 3};
-    Sv2Header sv2_header{Sv2MsgType::SETUP_CONNECTION_SUCCESS, 6};
+    SetupConnectionSuccessMsg setup_conn_success{2, 3};
+    Sv2NetHeader sv2_header{Sv2MsgType::SETUP_CONNECTION_SUCCESS, 6};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << sv2_header << setup_conn_success;
@@ -148,7 +148,7 @@ BOOST_AUTO_TEST_CASE(NewTemplate_test)
         0xff, 0x4c, 0x39, 0x4b, 0x5a, 0x32, 0xbd, 0x4e, // merkle_path
     };
 
-    NewTemplate new_template;
+    NewTemplateMsg new_template;
     new_template.m_template_id = 1;
     new_template.m_future_template = false;
     new_template.m_version = 805306368;
@@ -186,7 +186,7 @@ BOOST_AUTO_TEST_CASE(NewTemplate_test)
     BOOST_CHECK(std::equal(bytes.begin(), bytes.end(), expected));
 }
 
-BOOST_AUTO_TEST_CASE(Sv2Header_NewTemplate_test)
+BOOST_AUTO_TEST_CASE(Sv2NetHeader_NewTemplate_test)
 {
     uint8_t expected[] = {
         0x00, 0x00,       // extension type
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE(Sv2Header_NewTemplate_test)
         0x00, 0x00, 0x00, // msg length
     };
 
-    Sv2Header sv2_header{Sv2MsgType::NEW_TEMPLATE, 0};
+    Sv2NetHeader sv2_header{Sv2MsgType::NEW_TEMPLATE, 0};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << sv2_header;
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(SetNewPrevHash_test)
     block.nTime = 1661877399;
     block.nBits = 58720255;
 
-    SetNewPrevHash new_prev_hash{block, 2};
+    SetNewPrevHashMsg new_prev_hash{block, 2};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << new_prev_hash;
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE(SetNewPrevHash_test)
     BOOST_CHECK(std::equal(bytes.begin(), bytes.end(), expected));
 }
 
-BOOST_AUTO_TEST_CASE(Sv2Header_SetNewPrevHash_test)
+BOOST_AUTO_TEST_CASE(Sv2NetHeader_SetNewPrevHash_test)
 {
     uint8_t expected[]{
         0x00, 0x00,       // extension type
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(Sv2Header_SetNewPrevHash_test)
         0x00, 0x00, 0x00, // msg length
     };
 
-    Sv2Header sv2_header{Sv2MsgType::SET_NEW_PREV_HASH, 0};
+    Sv2NetHeader sv2_header{Sv2MsgType::SET_NEW_PREV_HASH, 0};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << sv2_header;
@@ -297,13 +297,13 @@ BOOST_AUTO_TEST_CASE(SubmitSolution_test)
         0x2c, 0x7c, 0x1f, 0x4d, 0x0, 0x0, 0x0, 0x0};
     CDataStream ss(input, SER_NETWORK, PROTOCOL_VERSION);
 
-    SubmitSolution submit_solution;
+    SubmitSolutionMsg submit_solution;
     ss >> submit_solution;
     BOOST_CHECK_EQUAL(submit_solution.m_template_id, 2);
     BOOST_CHECK_EQUAL(submit_solution.m_version, 2);
 }
 
-BOOST_AUTO_TEST_CASE(Sv2Header_SubmitSolution_test)
+BOOST_AUTO_TEST_CASE(Sv2NetHeader_SubmitSolution_test)
 {
     uint8_t expected[]{
         0x00, 0x00,       // extension type
@@ -311,7 +311,7 @@ BOOST_AUTO_TEST_CASE(Sv2Header_SubmitSolution_test)
         0x00, 0x00, 0x00, // msg length
     };
 
-    Sv2Header sv2_header{Sv2MsgType::SUBMIT_SOLUTION, 0};
+    Sv2NetHeader sv2_header{Sv2MsgType::SUBMIT_SOLUTION, 0};
 
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << sv2_header;

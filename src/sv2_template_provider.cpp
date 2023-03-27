@@ -133,7 +133,7 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                 CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
                 ss << Span<uint8_t>(bytes_received_buf, num_bytes_received);
 
-                Sv2Header sv2_header;
+                Sv2NetHeader sv2_header;
                 try {
                     ss >> sv2_header;
                 } catch (const std::exception& e) {
@@ -170,7 +170,7 @@ void Sv2TemplateProvider::UpdatePrevHash()
     // references that block?
     if (cached_block != m_blocks_cache.end()) {
         const CBlock block = cached_block->second->block;
-        m_best_prev_hash = SetNewPrevHash{block, m_new_template.m_template_id};
+        m_best_prev_hash = SetNewPrevHashMsg{block, m_new_template.m_template_id};
     }
 }
 
@@ -183,7 +183,7 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
     std::unique_ptr<node::CBlockTemplate> blocktemplate = node::BlockAssembler(m_chainman.ActiveChainstate(), &m_mempool, options).CreateNewBlock(CScript());
 
     uint64_t id = ++m_template_id;
-    NewTemplate new_template{blocktemplate->block, id, future};
+    NewTemplateMsg new_template{blocktemplate->block, id, future};
     m_blocks_cache.insert({new_template.m_template_id, std::move(blocktemplate)});
     m_new_template = new_template;
 }
@@ -222,7 +222,7 @@ void Sv2TemplateProvider::OnNewBlock()
     }
 }
 
-void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client& client)
+void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client& client)
 {
     switch (sv2_header.m_msg_type) {
     case SETUP_CONNECTION: {
@@ -230,7 +230,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             return;
         }
 
-        SetupConnection setup_conn;
+        SetupConnectionMsg setup_conn;
         try {
             ss >> setup_conn;
         } catch (const std::exception& e) {
@@ -248,7 +248,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             constexpr auto default_used_version{2};
             constexpr auto default_optional_feature_flags{0};
 
-            SetupConnectionSuccess setup_success{default_used_version, default_optional_feature_flags};
+            SetupConnectionSuccessMsg setup_success{default_used_version, default_optional_feature_flags};
             setup_success_ss << Sv2NetMsg{setup_success};
 
             ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
@@ -263,7 +263,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             return;
         }
 
-        CoinbaseOutputDataSize coinbase_output_data_size;
+        CoinbaseOutputDataSizeMsg coinbase_output_data_size;
         try {
             ss >> coinbase_output_data_size;
             client.m_coinbase_output_data_size_recv = true;
@@ -310,7 +310,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
         break;
     }
     case SUBMIT_SOLUTION: {
-        SubmitSolution submit_solution;
+        SubmitSolutionMsg submit_solution;
         try {
             ss >> submit_solution;
         } catch (const std::exception& e) {

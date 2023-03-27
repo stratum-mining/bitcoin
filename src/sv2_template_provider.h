@@ -57,7 +57,7 @@ public:
  * The first message sent by the client to the server to establish a connection
  * and specifies the subprotocol (Template Provider).
  */
-class SetupConnection : Sv2Msg
+class SetupConnectionMsg : Sv2Msg
 {
 private:
     /**
@@ -145,7 +145,7 @@ public:
  * The TP MUST NOT provide NewWork messages which would represent consensus-invalid blocks once this
  * additional size — along with a maximally-sized (100 byte) coinbase field — is added.
  */
-class CoinbaseOutputDataSize : Sv2Msg
+class CoinbaseOutputDataSizeMsg : Sv2Msg
 {
 private:
     /**
@@ -180,7 +180,7 @@ public:
  * The client is required to verify the set of feature flags that the server
  * supports and act accordingly.
  */
-class SetupConnectionSuccess : Sv2Msg
+class SetupConnectionSuccessMsg : Sv2Msg
 {
 private:
     /**
@@ -201,7 +201,7 @@ public:
      */
     uint32_t m_flags;
 
-    explicit SetupConnectionSuccess(uint16_t used_version, uint32_t flags) : m_used_version{used_version}, m_flags{flags} {};
+    explicit SetupConnectionSuccessMsg(uint16_t used_version, uint32_t flags) : m_used_version{used_version}, m_flags{flags} {};
 
     /**
      * Sv2Msg Implementation.
@@ -223,7 +223,7 @@ public:
  * The work template for downstream devices. Can be used for future work or immediate work.
  * The NewTemplate will be matched to a cached block using the template id.
  */
-class NewTemplate : Sv2Msg
+class NewTemplateMsg : Sv2Msg
 {
 private:
     /**
@@ -302,9 +302,9 @@ public:
         return m_msg_type;
     }
 
-    NewTemplate() = default;
+    NewTemplateMsg() = default;
 
-    explicit NewTemplate(const CBlock& block, uint64_t template_id, bool future_template)
+    explicit NewTemplateMsg(const CBlock& block, uint64_t template_id, bool future_template)
         : m_template_id{template_id}, m_future_template{future_template}
     {
         m_version = block.GetBlockHeader().nVersion;
@@ -367,7 +367,7 @@ public:
  * for a future template, indicating the client can begin work on a previously
  * received and cached NewTemplate which contains the same template id.
  */
-class SetNewPrevHash : Sv2Msg
+class SetNewPrevHashMsg : Sv2Msg
 {
 private:
     /**
@@ -404,7 +404,7 @@ public:
      */
     uint256 m_target;
 
-    SetNewPrevHash() = default;
+    SetNewPrevHashMsg() = default;
 
     /**
      * Sv2Msg Implementation.
@@ -414,7 +414,7 @@ public:
         return m_msg_type;
     }
 
-    explicit SetNewPrevHash(const CBlock& block, uint64_t template_id)
+    explicit SetNewPrevHashMsg(const CBlock& block, uint64_t template_id)
     {
         m_template_id = template_id;
         m_prev_hash = block.hashPrevBlock;
@@ -441,7 +441,7 @@ public:
  * values from SubmitSolution. The template provider must then propagate the block to the
  * Bitcoin Network.
  */
-class SubmitSolution : Sv2Msg
+class SubmitSolutionMsg : Sv2Msg
 {
 private:
     /**
@@ -480,7 +480,7 @@ public:
      */
     CMutableTransaction m_coinbase_tx;
 
-    SubmitSolution() = default;
+    SubmitSolutionMsg() = default;
 
     /**
      * Sv2Msg Implementation.
@@ -507,7 +507,7 @@ public:
  * the length of the serialized message and a 2 byte extension field currently
  * not utilised by the template provider.
  */
-class Sv2Header
+class Sv2NetHeader
 {
 public:
     /**
@@ -520,8 +520,8 @@ public:
      */
     uint32_t m_msg_len;
 
-    Sv2Header() = default;
-    explicit Sv2Header(Sv2MsgType msg_type, uint32_t msg_len) : m_msg_type{msg_type}, m_msg_len{msg_len} {};
+    Sv2NetHeader() = default;
+    explicit Sv2NetHeader(Sv2MsgType msg_type, uint32_t msg_len) : m_msg_type{msg_type}, m_msg_len{msg_len} {};
 
     template <typename Stream>
     void Serialize(Stream& s) const
@@ -570,14 +570,14 @@ template <typename M>
 class Sv2NetMsg
 {
 private:
-    Sv2Header m_sv2_header;
+    Sv2NetHeader m_sv2_header;
     std::vector<uint8_t> m_msg;
 
 public:
     explicit Sv2NetMsg(const M& msg)
     {
         CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, m_msg, 0, msg};
-        m_sv2_header = Sv2Header{msg.GetMsgType(), static_cast<uint32_t>(m_msg.size())};
+        m_sv2_header = Sv2NetHeader{msg.GetMsgType(), static_cast<uint32_t>(m_msg.size())};
     }
 
     template <typename Stream>
@@ -677,7 +677,7 @@ private:
     /**
      * The best known template to give all sv2 clients.
      */
-    NewTemplate m_new_template;
+    NewTemplateMsg m_new_template;
 
     /**
      * The current best known new template id. It is incremented on each new template.
@@ -688,7 +688,7 @@ private:
      * The current best known SetNewPrevHash that references the current best known
      * block hash as the previous hash.
      */
-    SetNewPrevHash m_best_prev_hash;
+    SetNewPrevHashMsg m_best_prev_hash;
 
     /**
      * Creates a socket and binds the port for new stratum v2 connections.
@@ -720,7 +720,7 @@ private:
     /**
      * Main handler for all received stratum v2 messages.
      */
-    void ProcessSv2Message(const Sv2Header& sv2_header, CDataStream& ss, Sv2Client& client);
+    void ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client& client);
 
     /**
      * Generates the socket events for each Sv2Client socket and the main listening socket.
