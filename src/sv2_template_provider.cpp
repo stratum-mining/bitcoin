@@ -190,34 +190,47 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
 
 void Sv2TemplateProvider::OnNewBlock()
 {
+    CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
+    try {
+        new_template_ss << Sv2NetMsg{m_new_template};
+    } catch (const std::exception& e) {
+        LogPrintf("Error serializing m_new_template: %e\n", e.what());
+        return;
+    }
+
+    CDataStream new_prev_hash_ss(SER_NETWORK, PROTOCOL_VERSION);
+    try {
+        new_prev_hash_ss << Sv2NetMsg{m_best_prev_hash};
+    } catch (const std::exception& e) {
+        LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
+        return;
+    }
+
     for (const auto& client : m_sv2_clients) {
         if (!client.m_setup_connection_confirmed) {
             continue;
         }
 
-        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+        try {
+            ssize_t sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(new_template_ss.size())) {
+                LogPrintf("Failed to send NewTemplate message\n");
+                continue;
+            }
+        } catch (const std::exception& e) {
+            LogPrintf("Error when sending NewTemplate message: %e\n", e.what());
+            continue;
+        }
 
         try {
-            ss << Sv2NetMsg{m_new_template};
+            ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
+                LogPrintf("Failed to send SetNewPrevHash\n");
+                continue;
+            }
         } catch (const std::exception& e) {
-            LogPrintf("Error writing m_new_template: %e\n", e.what());
-        }
-
-        ssize_t sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(ss.size())) {
-            LogPrintf("Failed to send NewTemplate message\n");
-        }
-        ss.clear();
-
-        try {
-            ss << Sv2NetMsg{m_best_prev_hash};
-        } catch (const std::exception& e) {
-            LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
-        }
-
-        sent = client.m_sock->Send(ss.data(), ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (sent != static_cast<ssize_t>(ss.size())) {
-            LogPrintf("Failed to send SetNewPrevHash\n");
+            LogPrintf("Error when sending NewTemplate message: %e\n", e.what());
+            continue;
         }
     }
 }
@@ -251,9 +264,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
             SetupConnectionSuccessMsg setup_success{default_used_version, default_optional_feature_flags};
             setup_success_ss << Sv2NetMsg{setup_success};
 
-            ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-            if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
-                LogPrintf("Failed to send SetupSuccessMessage\n");
+            try { 
+                ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+                if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
+                    LogPrintf("Failed to send SetupSuccessMessage\n");
+                }
+            } catch (const std::exception& e) {
+                LogPrintf("Error when sending SetupSuccess message: %e\n", e.what());
             }
         }
         break;
