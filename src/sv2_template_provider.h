@@ -39,7 +39,7 @@ public:
     // Returns the message type for a Stratum V2 message.
     virtual Sv2MsgType GetMsgType() const = 0;
 
-    void ReadSTR0_255(CDataStream& stream, std::string& output)
+    void ReadSTR0_255(CDataStream& stream, std::string& output) const
     {
         uint8_t len;
         stream >> len;
