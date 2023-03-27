@@ -19,11 +19,26 @@ using u24_t = uint8_t[3];
 static constexpr uint8_t SETUP_CONN_TP_PROTOCOL{0x02};
 
 /**
+ * All the stratum v2 message types handled by the template provider.
+ */
+enum Sv2MsgType : uint8_t {
+    SETUP_CONNECTION = 0x00,
+    SETUP_CONNECTION_SUCCESS = 0x01,
+    NEW_TEMPLATE = 0x71,
+    SET_NEW_PREV_HASH = 0x72,
+    SUBMIT_SOLUTION = 0x76,
+    COINBASE_OUTPUT_DATA_SIZE = 0x70,
+};
+
+/**
  * Base class for all stratum v2 messages.
  */
 class Sv2Msg
 {
 public:
+    // Returns the message type for a Stratum V2 message.
+    virtual Sv2MsgType GetMsgType() const = 0;
+
     void ReadSTR0_255(CDataStream& stream, std::string& output)
     {
         uint8_t len;
@@ -39,23 +54,17 @@ public:
 };
 
 /**
- * All the stratum v2 message types handled by the template provider.
- */
-enum Sv2MsgType : uint8_t {
-    SETUP_CONNECTION = 0x00,
-    SETUP_CONNECTION_SUCCESS = 0x01,
-    NEW_TEMPLATE = 0x71,
-    SET_NEW_PREV_HASH = 0x72,
-    SUBMIT_SOLUTION = 0x76,
-    COINBASE_OUTPUT_DATA_SIZE = 0x70,
-};
-
-/**
  * The first message sent by the client to the server to establish a connection
  * and specifies the subprotocol (Template Provider).
  */
 class SetupConnection : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::SETUP_CONNECTION;
+
 public:
     /**
      * Specifies the subprotocol for the new connection. It will always be TemplateDistribution
@@ -109,6 +118,14 @@ public:
      */
     std::string m_device_id;
 
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
+
     template <typename Stream>
     void Unserialize(Stream& s)
     {
@@ -130,6 +147,12 @@ public:
  */
 class CoinbaseOutputDataSize : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::COINBASE_OUTPUT_DATA_SIZE;
+
 public:
     /**
      * The maximum additional serialized bytes which the pool will add in coinbase transaction outputs
@@ -142,6 +165,14 @@ public:
     {
         s >> m_coinbase_output_max_additional_size;
     }
+
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
 };
 
 /**
@@ -151,6 +182,12 @@ public:
  */
 class SetupConnectionSuccess : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::SETUP_CONNECTION_SUCCESS;
+
 public:
     /**
      * Selected version proposed by the connecting node that the upstream node supports.
@@ -166,6 +203,14 @@ public:
 
     explicit SetupConnectionSuccess(uint16_t used_version, uint32_t flags) : m_used_version{used_version}, m_flags{flags} {};
 
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
+
     template <typename Stream>
     void Serialize(Stream& s) const
     {
@@ -180,6 +225,12 @@ public:
  */
 class NewTemplate : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::NEW_TEMPLATE;
+
 public:
     /**
      * Server’s identification of the template. Strictly increasing, the current UNIX
@@ -242,6 +293,14 @@ public:
      * Merkle path hashes ordered from deepest.
      */
     std::vector<uint256> m_merkle_path;
+
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
 
     NewTemplate() = default;
 
@@ -310,6 +369,12 @@ public:
  */
 class SetNewPrevHash : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::SET_NEW_PREV_HASH;
+
 public:
     /**
      * The id referenced in a previous NewTemplate message.
@@ -341,6 +406,14 @@ public:
 
     SetNewPrevHash() = default;
 
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
+
     explicit SetNewPrevHash(const CBlock& block, uint64_t template_id)
     {
         m_template_id = template_id;
@@ -370,6 +443,12 @@ public:
  */
 class SubmitSolution : Sv2Msg
 {
+private:
+    /**
+     * The default message type value for this Stratum V2 message.
+     */
+    static const auto m_msg_type = Sv2MsgType::SUBMIT_SOLUTION;
+
 public:
     /**
      * The id referenced in a NewTemplate.
@@ -402,6 +481,14 @@ public:
     CMutableTransaction m_coinbase_tx;
 
     SubmitSolution() = default;
+
+    /**
+     * Sv2Msg Implementation.
+     */
+    Sv2MsgType GetMsgType() const override
+    {
+        return m_msg_type;
+    }
 
     template <typename Stream>
     void Unserialize(Stream& s)
@@ -482,14 +569,15 @@ public:
 template <typename M>
 class Sv2NetMsg
 {
-public:
+private:
     Sv2Header m_sv2_header;
     std::vector<uint8_t> m_msg;
 
-    explicit Sv2NetMsg(const Sv2MsgType msg_type, const M& msg)
+public:
+    explicit Sv2NetMsg(const M& msg)
     {
         CVectorWriter{SER_NETWORK, PROTOCOL_VERSION, m_msg, 0, msg};
-        m_sv2_header = Sv2Header{msg_type, static_cast<uint32_t>(m_msg.size())};
+        m_sv2_header = Sv2Header{msg.GetMsgType(), static_cast<uint32_t>(m_msg.size())};
     }
 
     template <typename Stream>

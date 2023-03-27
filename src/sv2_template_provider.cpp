@@ -198,7 +198,7 @@ void Sv2TemplateProvider::OnNewBlock()
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
 
         try {
-            ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
+            ss << Sv2NetMsg{m_new_template};
         } catch (const std::exception& e) {
             LogPrintf("Error writing m_new_template: %e\n", e.what());
         }
@@ -210,7 +210,7 @@ void Sv2TemplateProvider::OnNewBlock()
         ss.clear();
 
         try {
-            ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
+            ss << Sv2NetMsg{m_best_prev_hash};
         } catch (const std::exception& e) {
             LogPrintf("Error writing m_best_prev_hash: %e\n", e.what());
         }
@@ -245,7 +245,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
             CDataStream setup_success_ss(SER_NETWORK, PROTOCOL_VERSION);
             // TODO: Remove magic numbers.
             SetupConnectionSuccess setup_success{2, 0};
-            setup_success_ss << Sv2NetMsg<SetupConnectionSuccess>{Sv2MsgType::SETUP_CONNECTION_SUCCESS, setup_success};
+            setup_success_ss << Sv2NetMsg{setup_success};
 
             ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
@@ -270,7 +270,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
         CDataStream new_prev_hash_ss(SER_NETWORK, PROTOCOL_VERSION);
         try {
-            new_prev_hash_ss << Sv2NetMsg<SetNewPrevHash>{Sv2MsgType::SET_NEW_PREV_HASH, m_best_prev_hash};
+            new_prev_hash_ss << Sv2NetMsg{m_best_prev_hash};
         } catch (const std::exception& e) {
             LogPrintf("Error writing prev_hash: %e\n", e.what());
         }
@@ -285,7 +285,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2Header& sv2_header, CDataSt
 
         CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
         try {
-            new_template_ss << Sv2NetMsg<NewTemplate>{Sv2MsgType::NEW_TEMPLATE, m_new_template};
+            new_template_ss << Sv2NetMsg{m_new_template};
         } catch (const std::exception& e) {
             LogPrintf("Error writing copy_new_template: %e\n", e.what());
         }
