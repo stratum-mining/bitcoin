@@ -635,7 +635,7 @@ private:
     /**
      * The best known template to give all sv2 clients.
      */
-    NewTemplateMsg m_new_template;
+    NewTemplateMsg m_best_new_template;
 
     /**
      * The current best known new template id. It is incremented on each new template.

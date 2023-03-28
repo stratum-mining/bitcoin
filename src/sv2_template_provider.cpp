@@ -164,13 +164,13 @@ void Sv2TemplateProvider::Interrupt()
 
 void Sv2TemplateProvider::UpdatePrevHash()
 {
-    auto cached_block = m_blocks_cache.find(m_new_template.m_template_id);
+    auto cached_block = m_blocks_cache.find(m_best_new_template.m_template_id);
 
     // TODO: Use the best new templates cached block to create the best new prev hash that
     // references that block?
     if (cached_block != m_blocks_cache.end()) {
         const CBlock block = cached_block->second->block;
-        m_best_prev_hash = SetNewPrevHashMsg{block, m_new_template.m_template_id};
+        m_best_prev_hash = SetNewPrevHashMsg{block, m_best_new_template.m_template_id};
     }
 }
 
@@ -185,16 +185,16 @@ void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size
     uint64_t id = ++m_template_id;
     NewTemplateMsg new_template{blocktemplate->block, id, future};
     m_blocks_cache.insert({new_template.m_template_id, std::move(blocktemplate)});
-    m_new_template = new_template;
+    m_best_new_template = new_template;
 }
 
 void Sv2TemplateProvider::OnNewBlock()
 {
     CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
     try {
-        new_template_ss << Sv2NetMsg{m_new_template};
+        new_template_ss << Sv2NetMsg{m_best_new_template};
     } catch (const std::exception& e) {
-        LogPrintf("Error serializing m_new_template: %e\n", e.what());
+        LogPrintf("Error serializing m_best_new_template: %e\n", e.what());
         return;
     }
 
@@ -310,7 +310,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
 
         CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
         try {
-            new_template_ss << Sv2NetMsg{m_new_template};
+            new_template_ss << Sv2NetMsg{m_best_new_template};
         } catch (const std::exception& e) {
             LogPrintf("Error writing copy_new_template: %e\n", e.what());
         }
