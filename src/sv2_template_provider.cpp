@@ -33,7 +33,6 @@ void Sv2TemplateProvider::BindListenPort(uint16_t port)
     if (sock->Listen(max_pending_conns) == SOCKET_ERROR) {
         throw std::runtime_error("Sv2 Template Provider listening socket has an error");
     }
-
     m_listening_socket = std::move(sock);
     LogPrintf("Sv2 Template Provider listening on port: %d\n", port);
 };
@@ -83,8 +82,8 @@ void Sv2TemplateProvider::ThreadSv2Handler()
 
         // Remove clients that are flagged for disconnection.
         m_sv2_clients.erase(
-                std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const Sv2Client &client) {
-                    return client.m_disconnect_flag;
+                std::remove_if(m_sv2_clients.begin(), m_sv2_clients.end(), [](const auto &client) {
+                    return client->m_disconnect_flag;
 
         }), m_sv2_clients.end());
 
@@ -103,29 +102,29 @@ void Sv2TemplateProvider::ThreadSv2Handler()
 
             auto sock = m_listening_socket->Accept(reinterpret_cast<struct sockaddr*>(&sockaddr), &sockaddr_len);
             // TODO: Maybe check if (sock) and if not just ignore??? Does this have any consequence for the actualy tcp connection on the socket?
-            m_sv2_clients.emplace_back(Sv2Client{std::move(sock)});
+            m_sv2_clients.emplace_back(std::make_unique<Sv2Client>(Sv2Client{std::move(sock)}));
         }
 
         for (auto& client : m_sv2_clients) {
             bool has_received_data = false;
             bool has_error_occurred = false;
 
-            const auto it = events_per_sock.find(client.m_sock);
+            const auto it = events_per_sock.find(client->m_sock);
             if (it != events_per_sock.end()) {
                 has_received_data = it->second.occurred & Sock::RECV;
                 has_error_occurred = it->second.occurred & Sock::ERR;
             }
 
             if (has_error_occurred) {
-                client.m_disconnect_flag = true;
+                client->m_disconnect_flag = true;
             }
 
             if (has_received_data) {
                 uint8_t bytes_received_buf[0x10000];
-                auto num_bytes_received = client.m_sock->Recv(bytes_received_buf, sizeof(bytes_received_buf), MSG_DONTWAIT);
+                auto num_bytes_received = client->m_sock->Recv(bytes_received_buf, sizeof(bytes_received_buf), MSG_DONTWAIT);
 
                 if (num_bytes_received <= 0) {
-                    client.m_disconnect_flag = true;
+                    client->m_disconnect_flag = true;
                     continue;
                 }
 
@@ -138,12 +137,12 @@ void Sv2TemplateProvider::ThreadSv2Handler()
                     ss >> sv2_header;
                 } catch (const std::exception& e) {
                     LogPrintf("Received invalid header: %s\n", e.what());
-                    client.m_disconnect_flag = true;
+                    client->m_disconnect_flag = true;
                     continue;
                 }
 
                 // TODO: Maybe give it a better name than ss
-                ProcessSv2Message(sv2_header, ss, client);
+                ProcessSv2Message(sv2_header, ss, client.get());
             }
         }
     }
@@ -161,30 +160,35 @@ void Sv2TemplateProvider::Interrupt()
     m_flag_interrupt_sv2 = true;
 }
 
-
 void Sv2TemplateProvider::UpdatePrevHash()
 {
+    // Get the block associated with the current best new template.
     auto cached_block = m_blocks_cache.find(m_best_new_template.m_template_id);
 
-    // TODO: Use the best new templates cached block to create the best new prev hash that
-    // references that block?
+    // Update the best known prevhash with the prevhash used in our best known block. The prevhash in our
+    // best known block should be referencing the best known block in our chain.
     if (cached_block != m_blocks_cache.end()) {
-        const CBlock block = cached_block->second->block;
+        const CBlock& block = cached_block->second->block;
         m_best_prev_hash = SetNewPrevHashMsg{block, m_best_new_template.m_template_id};
     }
 }
 
-void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int out_data_size)
+void Sv2TemplateProvider::UpdateTemplate(bool future, unsigned int coinbase_output_max_additional_size)
 {
     node::BlockAssembler::Options options;
-    options.nBlockMaxWeight = MAX_BLOCK_WEIGHT - out_data_size;
+
+    // Subtracts the required coinbase_output_max_additional_size from the MAX_BLOCK_WEIGHT to give 
+    // clients extra bytes for their coinbase transactions.
+    options.nBlockMaxWeight = MAX_BLOCK_WEIGHT - coinbase_output_max_additional_size;
     options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
 
-    std::unique_ptr<node::CBlockTemplate> blocktemplate = node::BlockAssembler(m_chainman.ActiveChainstate(), &m_mempool, options).CreateNewBlock(CScript());
+    auto blocktemplate = node::BlockAssembler(m_chainman.ActiveChainstate(), &m_mempool, options).CreateNewBlock(CScript());
 
     uint64_t id = ++m_template_id;
     NewTemplateMsg new_template{blocktemplate->block, id, future};
     m_blocks_cache.insert({new_template.m_template_id, std::move(blocktemplate)});
+
+    // TODO: This doesn't always mean its the best new template right? One client might need a larger coinbase output size than another?
     m_best_new_template = new_template;
 }
 
@@ -207,12 +211,12 @@ void Sv2TemplateProvider::OnNewBlock()
     }
 
     for (const auto& client : m_sv2_clients) {
-        if (!client.m_setup_connection_confirmed) {
+        if (!client->m_setup_connection_confirmed) {
             continue;
         }
 
         try {
-            ssize_t sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client->m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != static_cast<ssize_t>(new_template_ss.size())) {
                 LogPrintf("Failed to send NewTemplate message\n");
                 continue;
@@ -223,7 +227,7 @@ void Sv2TemplateProvider::OnNewBlock()
         }
 
         try {
-            ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client->m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
                 LogPrintf("Failed to send SetNewPrevHash\n");
                 continue;
@@ -235,11 +239,12 @@ void Sv2TemplateProvider::OnNewBlock()
     }
 }
 
-void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client& client)
+void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client* client)
+
 {
     switch (sv2_header.m_msg_type) {
     case SETUP_CONNECTION: {
-        if (client.m_setup_connection_confirmed) {
+        if (client->m_setup_connection_confirmed) {
             return;
         }
 
@@ -248,12 +253,13 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
             ss >> setup_conn;
         } catch (const std::exception& e) {
             LogPrintf("Received invalid SetupConnection message: %s\n", e.what());
-            client.m_disconnect_flag = true;
+            client->m_disconnect_flag = true;
             return;
         }
 
+        // TODO: Mark the client for disconnection if wrong protocol?
         if (setup_conn.m_protocol == SETUP_CONN_TP_PROTOCOL) {
-            client.m_setup_connection_confirmed = true;
+            client->m_setup_connection_confirmed = true;
 
             CDataStream setup_success_ss(SER_NETWORK, PROTOCOL_VERSION);
 
@@ -265,7 +271,7 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
             setup_success_ss << Sv2NetMsg{setup_success};
 
             try { 
-                ssize_t sent = client.m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+                ssize_t sent = client->m_sock->Send(setup_success_ss.data(), setup_success_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
                 if (sent != static_cast<ssize_t>(setup_success_ss.size())) {
                     LogPrintf("Failed to send SetupSuccessMessage\n");
                 }
@@ -276,57 +282,54 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
         break;
     }
     case COINBASE_OUTPUT_DATA_SIZE: {
-        if (!client.m_setup_connection_confirmed) {
+        if (!client->m_setup_connection_confirmed) {
             return;
         }
 
         CoinbaseOutputDataSizeMsg coinbase_output_data_size;
         try {
             ss >> coinbase_output_data_size;
-            client.m_coinbase_output_data_size_recv = true;
+            client->m_coinbase_output_data_size_recv = true;
         } catch (const std::exception& e) {
             LogPrintf("Received invalid CoinbaseOutputDataSize message: %s\n", e.what());
             return;
         }
 
-        CDataStream new_prev_hash_ss(SER_NETWORK, PROTOCOL_VERSION);
-        try {
-            new_prev_hash_ss << Sv2NetMsg{m_best_prev_hash};
-        } catch (const std::exception& e) {
-            LogPrintf("Error writing prev_hash: %e\n", e.what());
-        }
+        client->m_coinbase_tx_outputs_size = coinbase_output_data_size.m_coinbase_output_max_additional_size;
+        UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
+        UpdatePrevHash();
 
         try {
-            ssize_t sent = client.m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-            if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
-                LogPrintf("Failed to send NewPrevHash message\n");
-            }
-        } catch (const std::exception& e) {
-            LogPrintf("Error when sending NewPrevHash message: %e\n", e.what());
-        }
-
-        client.m_coinbase_tx_outputs_size = coinbase_output_data_size.m_coinbase_output_max_additional_size;
-        UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
-
-        CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
-        try {
+            CDataStream new_template_ss(SER_NETWORK, PROTOCOL_VERSION);
             new_template_ss << Sv2NetMsg{m_best_new_template};
-        } catch (const std::exception& e) {
-            LogPrintf("Error writing copy_new_template: %e\n", e.what());
-        }
 
-        try {
-            ssize_t sent = client.m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            ssize_t sent = client->m_sock->Send(new_template_ss.data(), new_template_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
             if (sent != static_cast<ssize_t>(new_template_ss.size())) {
                 LogPrintf("Failed to send NewTemplate Message,\n");
+                return;
             }
         } catch (const std::exception& e) {
             LogPrintf("Error when sending NewTemplate message: %e\n", e.what());
         }
 
+        try {
+            CDataStream new_prev_hash_ss(SER_NETWORK, PROTOCOL_VERSION);
+            new_prev_hash_ss << Sv2NetMsg{m_best_prev_hash};
+
+            ssize_t sent = client->m_sock->Send(new_prev_hash_ss.data(), new_prev_hash_ss.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (sent != static_cast<ssize_t>(new_prev_hash_ss.size())) {
+                LogPrintf("Failed to send NewPrevHash message\n");
+                return;
+            }
+        } catch (const std::exception& e) {
+            LogPrintf("Error when sending NewPrevHash message: %e\n", e.what());
+        }
+
         break;
     }
     case SUBMIT_SOLUTION: {
+        // TODO: Shold we also restrict for setpu_confirmation check?
+
         SubmitSolutionMsg submit_solution;
         try {
             ss >> submit_solution;
@@ -354,9 +357,11 @@ void Sv2TemplateProvider::ProcessSv2Message(const Sv2NetHeader& sv2_header, CDat
             bool new_block{true};
             bool res = m_chainman.ProcessNewBlock(blockptr, true /* force_processing */, true /* min_pow_checked */, &new_block);
             if (res) {
+                // TODO: Maybe clearning is irrelavant here, since we are going to change the best_new_template that when the event loop restarts it should clear the cache there?
                 m_blocks_cache.erase(submit_solution.m_template_id);
 
-                UpdateTemplate(true, client.m_coinbase_tx_outputs_size);
+                // TODO: Why is it using client, shouldn't it just be the default?
+                UpdateTemplate(true, client->m_coinbase_tx_outputs_size);
                 UpdatePrevHash();
 
                 OnNewBlock();
@@ -377,8 +382,8 @@ Sock::EventsPerSock Sv2TemplateProvider::GenerateWaitSockets() const
 
     for (const auto& sv2_client : m_sv2_clients) {
         // TODO: Also check if each nodes m_sock is some?
-        if (!sv2_client.m_disconnect_flag) {
-            events_per_sock.emplace(sv2_client.m_sock, Sock::Events{Sock::RECV | Sock::ERR});
+        if (!sv2_client->m_disconnect_flag) {
+            events_per_sock.emplace(sv2_client->m_sock, Sock::Events{Sock::RECV | Sock::ERR});
         }
     }
 

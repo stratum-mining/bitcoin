@@ -8,7 +8,7 @@
 #include <util/sock.h>
 
 /**
- * A type mainly used as the message length field in stratum v2 messages.
+ * A type used as the message length field in stratum v2 messages.
  */
 using u24_t = uint8_t[3];
 
@@ -17,6 +17,8 @@ using u24_t = uint8_t[3];
  * template provider only recognizes its own subprotocol.
  */
 static constexpr uint8_t SETUP_CONN_TP_PROTOCOL{0x02};
+
+static constexpr unsigned int default_coinbase_tx_output_size {0};
 
 /**
  * All the stratum v2 message types handled by the template provider.
@@ -389,6 +391,7 @@ public:
         return m_msg_type;
     }
 
+    // TODO: template_id can be list initialized.
     explicit SetNewPrevHashMsg(const CBlock& block, uint64_t template_id)
     {
         m_template_id = template_id;
@@ -589,7 +592,9 @@ public:
     // TODO: Add comment.
     unsigned int m_coinbase_tx_outputs_size;
 
+    // TODO: Maybe make it explicitly false? why would it default to true?, I think its for some reason using the same object after dropping it.
     explicit Sv2Client(std::shared_ptr<Sock> sock) : m_sock{sock} {};
+    /* explicit Sv2Client(std::shared_ptr<Sock> sock) : m_sock{sock}, m_disconnect_flag{false}{}; */
 };
 
 /**
@@ -611,7 +616,8 @@ private:
     /**
      * A list of all connected stratum v2 clients.
      */
-    std::vector<Sv2Client> m_sv2_clients;
+    /* std::vector<Sv2Client> m_sv2_clients; */
+    std::vector<std::unique_ptr<Sv2Client>> m_sv2_clients;
 
     /**
      * Signal for handling interrupts and stopping the template provider event loop.
@@ -678,12 +684,13 @@ private:
     /**
      * Main handler for all received stratum v2 messages.
      */
-    void ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client& client);
+    void ProcessSv2Message(const Sv2NetHeader& sv2_header, CDataStream& ss, Sv2Client* client);
 
     /**
      * Generates the socket events for each Sv2Client socket and the main listening socket.
      */
     Sock::EventsPerSock GenerateWaitSockets() const;
+
 public:
     explicit Sv2TemplateProvider(ChainstateManager& chainman, CTxMemPool& mempool) : m_chainman{chainman}, m_mempool{mempool} {};
     /**
