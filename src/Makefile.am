@@ -268,6 +268,7 @@ BITCOIN_CORE_H = \
   support/cleanse.h \
   support/events.h \
   support/lockedpool.h \
+  sv2_template_provider.h \
   sync.h \
   threadsafety.h \
   timedata.h \
@@ -438,6 +439,7 @@ libbitcoin_node_a_SOURCES = \
   rpc/signmessage.cpp \
   rpc/txoutproof.cpp \
   script/sigcache.cpp \
+  sv2_template_provider.cpp \
   shutdown.cpp \
   signet.cpp \
   timedata.cpp \
